@@ -21,6 +21,13 @@ export const useMessageHandling = (
     }
   }, [loadingMessages]);
 
+  // handleLoadMore가 messages[0]만 필요로 하므로, 전체 배열 대신 ref로 최신 값만 추적
+  // (messages를 deps에 넣으면 새 메시지가 올 때마다 콜백 참조가 바뀌어 하위 메모이제이션이 무력화됨)
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
  const {
    filePreview,
    uploading,
@@ -55,7 +62,7 @@ export const useMessageHandling = (
     }
 
     // messages는 이미 타임스탬프 정렬된 상태로 전달됨 → 재정렬 불필요
-    const oldestMessage = messages[0];
+    const oldestMessage = messagesRef.current[0];
     const beforeTimestamp = oldestMessage?.timestamp;
 
     if (!beforeTimestamp) {
@@ -76,7 +83,7 @@ export const useMessageHandling = (
       loadingRef.current = false;
       setLoadingMessages(false);
     }
-  }, [roomId, loadingMessages, messages, setLoadingMessages, canSendOnRoomSocket, getRoomSocket]);
+  }, [roomId, loadingMessages, setLoadingMessages, canSendOnRoomSocket, getRoomSocket]);
 
  const handleMessageSubmit = useCallback(async (messageData) => {
    const roomSocket = getRoomSocket();

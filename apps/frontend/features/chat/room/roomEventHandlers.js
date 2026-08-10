@@ -53,6 +53,12 @@ export const applyReadReceipts = (messages, { userId, messageIds, timestamp }) =
     };
   });
 
+const haveSameParticipantIds = (a = [], b = []) => {
+  if (a.length !== b.length) return false;
+  const idsA = new Set(a.map(p => p?._id || p?.id));
+  return b.every(p => idsA.has(p?._id || p?.id));
+};
+
 export const appendIncomingMessage = (messages, incoming) => {
   if (!incoming?._id) {
     return messages;
@@ -105,7 +111,15 @@ export const createRoomEventHandlers = ({
   return {
     onParticipantsUpdate: (participants) => {
       if (!mountedRef.current) return;
-      setRoom(prev => ({ ...prev, participants: participants || [] }));
+      setRoom(prev => {
+        const nextParticipants = participants || [];
+        // 참여자 구성이 그대로면 prev를 유지해 room 참조를 보존한다.
+        // (room도 모든 메시지에 prop으로 흘러가므로, 참조가 바뀌면 메시지 리스트 전체가 리렌더된다)
+        if (prev && haveSameParticipantIds(prev.participants, nextParticipants)) {
+          return prev;
+        }
+        return { ...prev, participants: nextParticipants };
+      });
     },
     onMessagesRead: (payload) => {
       if (!mountedRef.current) return;
