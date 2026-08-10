@@ -128,8 +128,10 @@ export const createRoomEventHandlers = ({
     onMessage: (incoming) => {
       if (!mountedRef.current || messageProcessingRef.current) return;
       if (!incoming?._id || processedMessageIds.current.has(incoming._id)) return;
+      // 위에서 이미 O(1)로 신규 메시지임을 확인했으므로, appendIncomingMessage의
+      // 재중복검사(.some, O(n))를 반복하지 않고 바로 추가한다.
       processedMessageIds.current.add(incoming._id);
-      setMessages(prev => appendIncomingMessage(prev, incoming));
+      setMessages(prev => [...prev, incoming]);
     },
     onPreviousMessagesLoaded: handlePreviousMessages,
     onMessageReactionUpdate: (data) => {
