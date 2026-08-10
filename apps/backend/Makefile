@@ -122,9 +122,10 @@ setup-env:
 	fi
 
 dev: setup-env verify-docker
-	@echo "Starting application with Testcontainers..."
+	@echo "Starting application..."
 	@$(SDKMAN_INIT) && \
-	./mvnw compile spring-boot:test-run \
+	set -a && . ./.env && set +a && \
+	./mvnw compile spring-boot:run \
 		-Dspring-boot.run.profiles=dev \
 		-Dspring-boot.run.jvmArguments="$(JVM_OPTS)"
 
