@@ -173,7 +173,9 @@ public class ChatMessageHandler {
             // AI 멘션 처리
             aiService.handleAIMentions(roomId, socketUser.id(), messageContent);
 
-            sessionService.updateLastActivity(socketUser.id());
+            // sessionService.validateSession(...)이 이미 lastActivity/expiresAt을 갱신·저장하므로
+            // 여기서 다시 updateLastActivity를 호출하면 같은 세션 도큐먼트를 find+save로 한 번 더
+            // 왕복하는 완전한 중복 작업이다.
 
             // Record success metrics
             recordMessageSuccess(messageType);
