@@ -1,5 +1,8 @@
 uploads/*
 
+# 로컬 성능 측정 스크래치 (의도적으로 커밋하지 않음)
+perf-artillery/
+
 # Eclipse JDT / LSP 생성 파일
 .classpath
 .project
