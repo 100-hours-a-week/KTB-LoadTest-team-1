@@ -8,9 +8,12 @@ import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.MessageRepository;
 import com.ktb.chatapp.repository.UserRepository;
 import com.ktb.chatapp.service.MessageReadStatusService;
-import jakarta.annotation.Nullable;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -66,11 +69,21 @@ public class MessageLoader {
         
         var messageIds = sortedMessages.stream().map(Message::getId).toList();
         messageReadStatusService.updateReadStatus(messageIds, userId);
-        
+
+        // 발신자 정보를 메시지마다 개별 findById로 조회하는 대신, 한 번에 배치 조회한다.
+        Set<String> senderIds = sortedMessages.stream()
+                .map(Message::getSenderId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<String, User> userCache = new HashMap<>();
+        for (User user : userRepository.findAllById(senderIds)) {
+            userCache.put(user.getId(), user);
+        }
+
         // 메시지 응답 생성
         List<MessageResponse> messageResponses = sortedMessages.stream()
                 .map(message -> {
-                    var user = findUserById(message.getSenderId());
+                    User user = message.getSenderId() != null ? userCache.get(message.getSenderId()) : null;
                     return messageResponseMapper.mapToMessageResponse(message, user);
                 })
                 .collect(Collectors.toList());
@@ -84,17 +97,5 @@ public class MessageLoader {
                 .messages(messageResponses)
                 .hasMore(hasMore)
                 .build();
-    }
-
-    /**
-     * AI 경우 null 반환 가능
-     */
-    @Nullable
-    private User findUserById(String id) {
-        if (id == null) {
-            return null;
-        }
-        return userRepository.findById(id)
-                .orElse(null);
     }
 }
