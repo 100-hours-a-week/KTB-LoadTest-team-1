@@ -1,6 +1,6 @@
-const getTime = (message) => new Date(message?.timestamp || 0).getTime();
+export const getTime = (message) => new Date(message?.timestamp || 0).getTime();
 
-const isSortedAscending = (list) => {
+export const isSortedAscending = (list) => {
   for (let i = 1; i < list.length; i++) {
     if (getTime(list[i]) < getTime(list[i - 1])) {
       return false;
