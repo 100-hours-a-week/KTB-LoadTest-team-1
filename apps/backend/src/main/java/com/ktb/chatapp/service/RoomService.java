@@ -10,9 +10,12 @@ import com.ktb.chatapp.repository.UserRepository;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,8 +38,20 @@ public class RoomService {
 
         try {
             // 전체 방을 조회해 최신순으로 정렬한다
-            List<RoomResponse> roomResponses = roomRepository.findAll().stream()
-                .map(room -> mapToRoomResponse(room, name))
+            List<Room> rooms = roomRepository.findAll();
+
+            // 방마다 개별 쿼리를 날리는 대신, 필요한 유저/최근 메시지 수를 한 번씩만 배치 조회한다
+            Set<String> userIds = rooms.stream()
+                .flatMap(room -> collectUserIds(room).stream())
+                .collect(Collectors.toSet());
+            Map<String, User> userCache = toUserMap(userRepository.findAllById(userIds));
+
+            List<String> roomIds = rooms.stream().map(Room::getId).toList();
+            Map<String, Integer> recentMessageCounts = recentMessageCounter.countRecentMessages(roomIds);
+
+            List<RoomResponse> roomResponses = rooms.stream()
+                .map(room -> buildRoomResponse(
+                    room, name, userCache, recentMessageCounts.getOrDefault(room.getId(), 0)))
                 .sorted(Comparator.comparing(
                     RoomResponse::getCreatedAtDateTime,
                     Comparator.nullsLast(Comparator.reverseOrder())))
@@ -178,21 +193,44 @@ public class RoomService {
         return room;
     }
 
+    /**
+     * 방 1개만 필요한 호출부(생성/입장 직후 이벤트 페이로드용)를 위한 편의 메서드.
+     * 내부적으로는 배치 조회 헬퍼를 그대로 재사용한다(유저 쿼리를 creator/participant 각각
+     * 개별로 날리는 대신 한 번에 묶어서 조회).
+     */
     private RoomResponse mapToRoomResponse(Room room, String name) {
         if (room == null) return null;
 
-        User creator = null;
+        Map<String, User> userCache = toUserMap(userRepository.findAllById(collectUserIds(room)));
+        int recentMessageCount = recentMessageCounter.countRecentMessages(room.getId());
+
+        return buildRoomResponse(room, name, userCache, recentMessageCount);
+    }
+
+    private Set<String> collectUserIds(Room room) {
+        Set<String> ids = new HashSet<>(room.getParticipantIds());
         if (room.getCreator() != null) {
-            creator = userRepository.findById(room.getCreator()).orElse(null);
+            ids.add(room.getCreator());
         }
+        return ids;
+    }
+
+    private Map<String, User> toUserMap(Iterable<User> users) {
+        Map<String, User> map = new HashMap<>();
+        for (User user : users) {
+            map.put(user.getId(), user);
+        }
+        return map;
+    }
+
+    private RoomResponse buildRoomResponse(
+            Room room, String name, Map<String, User> userCache, int recentMessageCount) {
+        User creator = room.getCreator() != null ? userCache.get(room.getCreator()) : null;
 
         List<User> participants = room.getParticipantIds().stream()
-            .map(userRepository::findById)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
+            .map(userCache::get)
+            .filter(Objects::nonNull)
             .toList();
-
-        int recentMessageCount = recentMessageCounter.countRecentMessages(room.getId());
 
         return RoomResponse.builder()
             .id(room.getId())
@@ -204,7 +242,7 @@ public class RoomService {
                 .email(creator.getEmail() != null ? creator.getEmail() : "")
                 .build() : null)
             .participants(participants.stream()
-                .filter(p -> p != null && p.getId() != null)
+                .filter(p -> p.getId() != null)
                 .map(p -> UserResponse.builder()
                     .id(p.getId())
                     .name(p.getName() != null ? p.getName() : "알 수 없음")
