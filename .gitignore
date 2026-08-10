@@ -1,0 +1,21 @@
+node_modules/
+*.log
+.DS_Store
+package-lock.json
+apps/frontend/.next
+apps/frontend/node_modules
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Load-test run artifacts (not versioned) — keep the baseline doc
+results/*
+!results/README-baseline.md
+
+apps/frontend/.env*
+
+# Backend local configuration and build artifacts
+apps/backend/.env
+apps/backend/target/
+apps/backend/.mvn/wrapper/maven-wrapper.jar

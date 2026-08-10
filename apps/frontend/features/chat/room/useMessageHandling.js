@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Toast } from '@/components/Toast';
 import socketClient from '@/lib/socket/socketClient';
 import { useChatFileUpload } from '../files/useChatFileUpload';
@@ -12,6 +12,15 @@ export const useMessageHandling = (
   setLoadingMessages,
   socketRef,
 ) => {
+  // state 체크만으로는 비동기 경쟁 조건에 취약 — ref로 즉각 잠금
+  const loadingRef = useRef(false);
+
+  useEffect(() => {
+    if (!loadingMessages) {
+      loadingRef.current = false;
+    }
+  }, [loadingMessages]);
+
  const {
    filePreview,
    uploading,
@@ -40,29 +49,33 @@ export const useMessageHandling = (
       return;
     }
 
-    if (loadingMessages) {
+    // state 기반 체크는 비동기라 같은 tick에 두 번 진입 가능 → ref로 즉각 잠금
+    if (loadingRef.current || loadingMessages) {
       return;
     }
 
-    // 가장 오래된 메시지의 타임스탬프 찾기
-    const sortedMessages = [...messages].sort(
-      (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
-    );
-    const oldestMessage = sortedMessages[0];
+    // messages는 이미 타임스탬프 정렬된 상태로 전달됨 → 재정렬 불필요
+    const oldestMessage = messages[0];
     const beforeTimestamp = oldestMessage?.timestamp;
 
     if (!beforeTimestamp) {
       return;
     }
 
+    loadingRef.current = true;
     setLoadingMessages(true);
 
-    // Socket.IO 이벤트만 발행 - 응답은 useChatRoom의 previousMessagesLoaded 이벤트 핸들러에서 처리
-    socketClient.fetchPreviousMessages({
-      roomId: roomId,
-      before: beforeTimestamp,
-      limit: 30
-    }, getRoomSocket());
+    try {
+      // Socket.IO 이벤트만 발행 - 응답은 useChatRoom의 previousMessagesLoaded 이벤트 핸들러에서 처리
+      socketClient.fetchPreviousMessages({
+        roomId: roomId,
+        before: beforeTimestamp,
+        limit: 30
+      }, getRoomSocket());
+    } catch (error) {
+      loadingRef.current = false;
+      setLoadingMessages(false);
+    }
   }, [roomId, loadingMessages, messages, setLoadingMessages, canSendOnRoomSocket, getRoomSocket]);
 
  const handleMessageSubmit = useCallback(async (messageData) => {
