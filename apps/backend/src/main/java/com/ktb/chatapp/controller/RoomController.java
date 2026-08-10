@@ -20,9 +20,13 @@ import jakarta.validation.Valid;
 import java.security.Principal;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -267,20 +271,27 @@ public class RoomController {
     }
 
     private RoomResponse mapToRoomResponse(Room room, String name) {
-        User creator = userRepository.findById(room.getCreator()).orElse(null);
+        Set<String> userIds = new HashSet<>(room.getParticipantIds());
+        userIds.add(room.getCreator());
+        Map<String, User> userCache = new HashMap<>();
+        for (User user : userRepository.findAllById(userIds)) {
+            userCache.put(user.getId(), user);
+        }
+
+        User creator = userCache.get(room.getCreator());
         if (creator == null) {
             throw new RuntimeException("Creator not found for room " + room.getId());
         }
         UserResponse creatorSummary = UserResponse.from(creator);
         List<UserResponse> participantSummaries = room.getParticipantIds()
                 .stream()
-                .map(userRepository::findById).peek(optUser -> {
-                    if (optUser.isEmpty()) {
-                        log.warn("Participant not found: roomId={}, userId={}", room.getId(), optUser);
+                .map(userCache::get)
+                .peek(user -> {
+                    if (user == null) {
+                        log.warn("Participant not found: roomId={}", room.getId());
                     }
                 })
-                .filter(Optional::isPresent)
-                .map(Optional::get)
+                .filter(Objects::nonNull)
                 .map(UserResponse::from)
                 .toList();
 

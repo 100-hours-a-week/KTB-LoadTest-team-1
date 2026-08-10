@@ -122,7 +122,7 @@ make test     # 단위/통합 테스트 실행
 직접 Maven 명령을 사용할 수도 있습니다.
 ```bash
 ./mvnw clean package          # 전체 빌드 및 테스트
-./mvnw compile spring-boot:test-run -Dspring-boot.run.profiles=dev        # 애플리케이션 실행
+./mvnw compile spring-boot:run -Dspring-boot.run.profiles=dev        # 애플리케이션 실행
 java -jar target/ktb-chat-backend-0.0.1-SNAPSHOT.jar
 ```
 기본 포트는 HTTP `5001`, Socket.IO `5002`입니다.
