@@ -1,0 +1,7 @@
+uploads/*
+
+# Eclipse JDT / LSP 생성 파일
+.classpath
+.project
+.factorypath
+.settings/
