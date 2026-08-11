@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { Toast } from '@/components/Toast';
 import socketClient from '@/lib/socket/socketClient';
 import { useChatFileUpload } from '../files/useChatFileUpload';
+import { appendIncomingMessage } from './roomEventHandlers';
 
 export const useMessageHandling = (
   currentUser,
@@ -11,6 +12,8 @@ export const useMessageHandling = (
   loadingMessages = false,
   setLoadingMessages,
   socketRef,
+  setMessages,
+  processedMessageIds,
 ) => {
   // state 체크만으로는 비동기 경쟁 조건에 취약 — ref로 즉각 잠금
   const loadingRef = useRef(false);
@@ -50,6 +53,13 @@ export const useMessageHandling = (
 
     return socketClient.canSend();
   }, [getRoomSocket, socketRef]);
+
+  const commitConfirmedMessage = useCallback((confirmedMessage) => {
+    if (!confirmedMessage?._id || typeof setMessages !== 'function') return;
+
+    processedMessageIds?.current?.add(confirmedMessage._id);
+    setMessages(prev => appendIncomingMessage(prev, confirmedMessage));
+  }, [processedMessageIds, setMessages]);
 
   const handleLoadMore = useCallback(() => {
     if (!canSendOnRoomSocket()) {
@@ -104,7 +114,7 @@ export const useMessageHandling = (
           currentUser
         );
 
-       await socketClient.sendChatMessageAndWait({
+       const confirmedMessage = await socketClient.sendChatMessageAndWait({
          room: roomId,
          type: 'file',
          content: messageData.content || '',
@@ -116,15 +126,17 @@ export const useMessageHandling = (
            size: uploadResponse.data.file.size
          }
        }, roomSocket);
+       commitConfirmedMessage(confirmedMessage);
 
        resetFileUpload();
 
      } else if (messageData.content?.trim()) {
-       await socketClient.sendChatMessageAndWait({
+       const confirmedMessage = await socketClient.sendChatMessageAndWait({
          room: roomId,
          type: 'text',
          content: messageData.content.trim()
        }, roomSocket);
+       commitConfirmedMessage(confirmedMessage);
      }
 
    } catch (error) {
@@ -145,7 +157,7 @@ export const useMessageHandling = (
        setUploading(false);
      }
    }
- }, [currentUser, roomId, handleSessionError, uploadChatFile, resetFileUpload, setUploadError, setUploading, canSendOnRoomSocket, getRoomSocket]);
+ }, [currentUser, roomId, handleSessionError, uploadChatFile, resetFileUpload, setUploadError, setUploading, canSendOnRoomSocket, getRoomSocket, commitConfirmedMessage]);
 
  const removeFilePreview = useCallback(() => {
    resetFileUpload();
