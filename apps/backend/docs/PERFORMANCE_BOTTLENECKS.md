@@ -21,7 +21,7 @@
 | [2](performance/02-message-index.md) | `messages` 컬렉션에 인덱스가 하나도 없음 | Critical | ✅ 완료 |
 | [3](performance/03-get-rooms-n-plus-1.md) | `GET /api/rooms` N+1 쿼리 폭발 + 페이지네이션 미적용 | Critical | ⚠️ N+1만 완료 |
 | [4](performance/04-chatmessage-duplicate-session.md) | 채팅 메시지 1건당 MongoDB 왕복 9~10회 | Critical | ⚠️ 중복 호출만 제거 |
-| [5](performance/05-banned-word-filter.md) | 금칙어 필터가 메시지마다 10,000개 단어 순차 스캔 | Critical | 미착수 |
+| [5](performance/05-banned-word-filter.md) | 금칙어 필터가 메시지마다 10,000개 단어 순차 스캔 | Critical | ✅ 완료 |
 | [6](performance/06-message-loader-n-plus-1.md) | 히스토리 스크롤이 발신자 정보를 메시지마다 개별 조회 | High | ✅ 완료 |
 | [7](performance/07-mark-as-read-bulk-update.md) | 읽음 처리가 메시지 ID 개수만큼 find+save 반복 | High | ✅ 완료 |
 | [8](performance/08-redis-unused.md) | Redis가 인프라엔 있는데 코드에서 전혀 안 쓰임 | Medium (인프라) | 미착수 |
@@ -37,6 +37,7 @@
 |---|---|---|
 | [1·2·3](performance/GET_ROOMS_METHODOLOGY.md) | `GET /api/rooms` 스파이크(2,500 VU/10초) | 실패율 90.4% → **0%**, p99 3,678ms → **34.8ms** |
 | [4](performance/04-chatmessage-duplicate-session.md) | 메시지 1,000건 동시 전송, 서버 처리 시간 | 평균 14.74ms → **10.52ms (-28.6%)** |
+| [5](performance/05-banned-word-filter.md) | `containsBannedWord` 메서드 단위 벤치마크(20만 회) | 216us → **0.17us/call (약 1,300배)** |
 | [6](performance/06-message-loader-n-plus-1.md) | 발신자 30명(전부 다름)짜리 히스토리 조회 | p50 10ms → **6ms (-40%)** |
 | [7](performance/07-mark-as-read-bulk-update.md) | 유저 30명, 메시지 200건 동시 읽음 처리 | p50 240ms → **43ms (-82%)**, N에 비례 → 상수 시간 |
 | [13](performance/13-reconnect-leave.md) | 유저 20명×방 5개 동시 재접속 | 퇴장 스팸 메시지 100건 → **0건** (현재 롤백 상태) |
@@ -58,10 +59,10 @@
 4. [3번] `RoomService.getAllRooms`/`mapToRoomResponse` N+1 제거 — **✅ N+1 완료** (페이지네이션은 보류).
 5. [7번] `MessageReadStatusService.updateReadStatus`를 벌크 업데이트로 교체 — **✅ 완료.**
 6. [6번] 히스토리 스크롤 발신자 조회 N+1 제거 — **✅ 완료.**
+7. [5번] 금칙어 필터를 Aho-Corasick으로 교체 — **✅ 완료.**
 
 ### 2단계 — 다음으로 볼 것 (비즈니스 로직 레벨)
 
-7. [5번] 금칙어 필터를 Aho-Corasick으로 교체 — CPU 프로파일링(Grafana `process_cpu_usage`) 먼저 확인 후 착수 추천.
 8. [4번 남은 부분] `notifyMessageStored`의 동기 COUNT 쿼리를 인메모리 캐시로 교체. **멀티인스턴스
    배포가 계획돼 있어 JVM 로컬 캐시는 부적합** — 지금 방식(MongoDB 쿼리, 인스턴스 무관하게 항상
    정확) 유지가 안전하다. Redis로 옮길 만큼 우선순위가 높지는 않다고 판단해 보류.
