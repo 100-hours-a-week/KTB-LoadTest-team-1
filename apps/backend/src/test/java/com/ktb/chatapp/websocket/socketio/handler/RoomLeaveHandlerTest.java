@@ -44,6 +44,7 @@ class RoomLeaveHandlerTest {
     @Mock private UserRepository userRepository;
     @Mock private UserRooms userRooms;
     @Mock private MessageResponseMapper messageResponseMapper;
+    @Mock private ParticipantListMapper participantListMapper;
     @Mock private SocketIOClient client;
     @Mock private BroadcastOperations roomOperations;
 
@@ -57,7 +58,8 @@ class RoomLeaveHandlerTest {
                 roomRepository,
                 userRepository,
                 userRooms,
-                messageResponseMapper);
+                messageResponseMapper,
+                participantListMapper);
     }
 
     @Test
@@ -96,7 +98,6 @@ class RoomLeaveHandlerTest {
         when(client.get("user")).thenReturn(socketUser);
         when(userRooms.isInRoom("user-1", "room-1")).thenReturn(true);
         when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
-        when(userRepository.findById("user-2")).thenReturn(Optional.of(remainingUser));
         when(roomRepository.findById("room-1"))
                 .thenReturn(Optional.of(roomBeforeLeave), Optional.of(roomAfterLeave));
         when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
@@ -107,6 +108,8 @@ class RoomLeaveHandlerTest {
         });
         when(messageResponseMapper.mapToMessageResponse(any(Message.class), eq(null)))
                 .thenReturn(leaveMessageResponse);
+        when(participantListMapper.toParticipantList(roomAfterLeave))
+                .thenReturn(List.of(UserResponse.from(remainingUser)));
         when(socketIOServer.getRoomOperations("room-1")).thenReturn(roomOperations);
 
         handler.handleLeaveRoom(client, "room-1");
