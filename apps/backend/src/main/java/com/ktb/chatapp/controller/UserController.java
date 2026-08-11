@@ -1,10 +1,14 @@
 package com.ktb.chatapp.controller;
 
+import com.ktb.chatapp.dto.ConfirmUploadRequest;
+import com.ktb.chatapp.dto.PresignedUploadRequest;
+import com.ktb.chatapp.dto.PresignedUploadResponse;
 import com.ktb.chatapp.dto.StandardResponse;
 import com.ktb.chatapp.dto.ProfileImageResponse;
 import com.ktb.chatapp.dto.UpdateProfileRequest;
 import com.ktb.chatapp.dto.UserResponse;
 import com.ktb.chatapp.service.UserService;
+import com.ktb.chatapp.storage.PresignedUpload;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -137,6 +141,81 @@ public class UserController {
         } catch (Exception e) {
             log.error("프로필 이미지 업로드 중 오류 발생: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(StandardResponse.error("이미지 업로드 중 오류가 발생했습니다."));
+        }
+    }
+
+    /**
+     * 프로필 이미지 사전서명 업로드 URL 발급
+     */
+    @Operation(summary = "프로필 이미지 사전서명 업로드 URL 발급", description = "클라이언트가 S3에 직접 업로드할 수 있는 사전서명 URL을 발급합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "발급 성공"),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "401", description = "인증 실패",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "404", description = "사용자를 찾을 수 없음",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "500", description = "서버 내부 오류",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class)))
+    })
+    @PostMapping("/profile-image/presigned-upload")
+    public ResponseEntity<?> issueProfileImagePresignedUpload(
+            Principal principal,
+            @Valid @RequestBody PresignedUploadRequest request) {
+
+        try {
+            PresignedUpload presigned = userService.issueProfileImagePresignedUpload(
+                    principal.getName(), request.getFilename(), request.getContentType(), request.getSize());
+            return ResponseEntity.ok(new PresignedUploadResponse(
+                    true, presigned.uploadUrl().toString(), presigned.key()));
+        } catch (UsernameNotFoundException e) {
+            log.error("사전서명 업로드 발급 실패 - 사용자 없음: {}", e.getMessage());
+            return ResponseEntity.status(404).body(StandardResponse.error("사용자를 찾을 수 없습니다."));
+        } catch (IllegalArgumentException e) {
+            log.error("사전서명 업로드 발급 실패 - 잘못된 입력: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(StandardResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            log.error("사전서명 업로드 발급 중 오류 발생: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(StandardResponse.error("사전서명 업로드 발급 중 오류가 발생했습니다."));
+        }
+    }
+
+    /**
+     * 프로필 이미지 사전서명 업로드 완료 확인
+     */
+    @Operation(summary = "프로필 이미지 사전서명 업로드 완료 확인", description = "S3에 직접 업로드된 프로필 이미지를 등록합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "등록 성공",
+            content = @Content(schema = @Schema(implementation = ProfileImageResponse.class))),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "401", description = "인증 실패",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "404", description = "사용자를 찾을 수 없음",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "500", description = "서버 내부 오류",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class)))
+    })
+    @PostMapping("/profile-image/presigned-upload/complete")
+    public ResponseEntity<?> completeProfileImagePresignedUpload(
+            Principal principal,
+            @Valid @RequestBody ConfirmUploadRequest request) {
+
+        try {
+            ProfileImageResponse response = userService.confirmProfileImageUpload(
+                    principal.getName(), request.getKey(), request.getFilename(), request.getContentType(),
+                    request.getSize());
+            return ResponseEntity.ok(response);
+        } catch (UsernameNotFoundException e) {
+            log.error("사전서명 업로드 확인 실패 - 사용자 없음: {}", e.getMessage());
+            return ResponseEntity.status(404).body(StandardResponse.error("사용자를 찾을 수 없습니다."));
+        } catch (IllegalArgumentException e) {
+            log.error("사전서명 업로드 확인 실패 - 잘못된 입력: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(StandardResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            log.error("사전서명 업로드 확인 중 오류 발생: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(StandardResponse.error("사전서명 업로드 확인 중 오류가 발생했습니다."));
         }
     }
 

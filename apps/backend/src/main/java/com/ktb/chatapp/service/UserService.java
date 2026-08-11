@@ -5,6 +5,8 @@ import com.ktb.chatapp.dto.UpdateProfileRequest;
 import com.ktb.chatapp.dto.UserResponse;
 import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.UserRepository;
+import com.ktb.chatapp.storage.PresignedUpload;
+import com.ktb.chatapp.storage.StorageKey;
 import com.ktb.chatapp.storage.StoragePort;
 import com.ktb.chatapp.util.FileUtil;
 import lombok.RequiredArgsConstructor;
@@ -12,8 +14,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -22,6 +26,8 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class UserService {
+
+    private static final Duration PRESIGNED_UPLOAD_TTL = Duration.ofMinutes(5);
 
     private final UserRepository userRepository;
     private final FileService fileService;
@@ -93,6 +99,49 @@ public class UserService {
     }
 
     /**
+     * 프로필 이미지 사전서명 업로드 URL 발급. 클라이언트가 이 URL로 S3에 직접 업로드한다.
+     */
+    public PresignedUpload issueProfileImagePresignedUpload(String email, String originalFilename, String contentType, long size) {
+        userRepository.findByEmail(email.toLowerCase())
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다."));
+
+        validateProfileImageMetadata(originalFilename, contentType, size);
+
+        String cleanedFilename = StringUtils.cleanPath(originalFilename);
+        String safeFileName = FileUtil.generateSafeFileName(cleanedFilename);
+        String key = StorageKey.profile(safeFileName);
+
+        return storagePort.createUploadUrl(key, contentType, PRESIGNED_UPLOAD_TTL)
+                .orElseThrow(() -> new RuntimeException("현재 스토리지에서는 사전서명 업로드를 지원하지 않습니다."));
+    }
+
+    /**
+     * 클라이언트가 사전서명 URL로 프로필 이미지 업로드를 마친 뒤 그 결과를 등록한다.
+     */
+    public ProfileImageResponse confirmProfileImageUpload(
+            String email, String key, String originalFilename, String contentType, long size) {
+        User user = userRepository.findByEmail(email.toLowerCase())
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다."));
+
+        validateProfileImageMetadata(originalFilename, contentType, size);
+        if (!StorageKey.isProfile(key)) {
+            throw new IllegalArgumentException("잘못된 이미지 key 입니다.");
+        }
+
+        if (user.getProfileImage() != null && !user.getProfileImage().isEmpty()) {
+            deleteOldProfileImage(user.getProfileImage());
+        }
+
+        user.setProfileImage(key);
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        log.info("프로필 이미지 사전서명 업로드 확인 완료 - User ID: {}, Key: {}", user.getId(), key);
+
+        return ProfileImageResponse.updated(key);
+    }
+
+    /**
      * 특정 사용자 프로필 조회
      */
     public UserResponse getUserProfile(String userId) {
@@ -109,25 +158,28 @@ public class UserService {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("이미지가 제공되지 않았습니다.");
         }
+        validateProfileImageMetadata(file.getOriginalFilename(), file.getContentType(), file.getSize());
+    }
 
+    /**
+     * 바이트 없이 메타데이터만으로 하는 프로필 이미지 유효성 검증 (presigned 업로드 발급/확인 시 사용).
+     */
+    private void validateProfileImageMetadata(String originalFilename, String contentType, long size) {
         // 파일 크기 검증
-        if (file.getSize() > maxProfileImageSize) {
+        if (size > maxProfileImageSize) {
             throw new IllegalArgumentException("파일 크기는 5MB를 초과할 수 없습니다.");
         }
 
         // Content-Type 검증
-        String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
             throw new IllegalArgumentException("이미지 파일만 업로드할 수 있습니다.");
         }
 
         // 파일 확장자 검증 (보안을 위해 화이트리스트 유지)
-        String originalFilename = file.getOriginalFilename();
         if (originalFilename == null) {
             throw new IllegalArgumentException("이미지 파일만 업로드할 수 있습니다.");
         }
 
-        // FileSecurityUtil의 static 메서드 호출
         String extension = FileUtil.getFileExtension(originalFilename).toLowerCase();
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new IllegalArgumentException("이미지 파일만 업로드할 수 있습니다.");
