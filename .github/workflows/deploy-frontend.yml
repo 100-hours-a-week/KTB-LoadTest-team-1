@@ -100,6 +100,7 @@ jobs:
           FRONTEND_IMAGE=${FRONTEND_IMAGE}
           ENV
           docker compose -f docker-compose.prod.yml pull
+          docker rm -f bootcamp-chat-frontend 2>/dev/null || true
           docker compose -f docker-compose.prod.yml up -d
           docker image prune -f
           EOF
