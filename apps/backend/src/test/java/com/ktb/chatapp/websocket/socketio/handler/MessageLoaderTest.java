@@ -102,11 +102,11 @@ class MessageLoaderTest {
         
         // DB는 DESC 정렬로 반환한다고 가정 (최신 것 먼저)
         // [21시간 전, 22시간 전, ..., 50시간 전]
-        var messagePage = getMessagePage(first30Messages);
-        
+        var messageSlice = getMessageSlice(first30Messages, true);
+
         when(messageRepository.findByRoomIdAndTimestampBefore(
                 eq(roomId), any(LocalDateTime.class), any(Pageable.class)))
-                .thenReturn(messagePage);
+                .thenReturn(messageSlice);
         
         // When: 메시지 로드
         FetchMessagesRequest req = new FetchMessagesRequest(roomId, 30, null);
@@ -121,12 +121,11 @@ class MessageLoaderTest {
         verifyAscending(result);
     }
     
-    private static @NotNull Page<Message> getMessagePage(List<Message> first30Messages) {
+    private static @NotNull Slice<Message> getMessageSlice(List<Message> first30Messages, boolean hasNext) {
         List<Message> messages = new ArrayList<>(first30Messages.reversed());
-        
+
         Pageable pageable = PageRequest.of(0, 30, Sort.by("timestamp").descending());
-        Page<Message> messagePage = new PageImpl<>(messages, pageable, 50);
-        return messagePage;
+        return new SliceImpl<>(messages, pageable, hasNext);
     }
     
     @Test
@@ -137,11 +136,11 @@ class MessageLoaderTest {
         
         // DB는 DESC 정렬로 반환 (최신 것부터)
         // [1시간 전, 2시간 전, ..., 30시간 전]
-        Page<Message> messagePage = getMessagePage(last30Messages);
-        
+        Slice<Message> messageSlice = getMessageSlice(last30Messages, false);
+
         when(messageRepository.findByRoomIdAndTimestampBefore(
                 eq(roomId), any(LocalDateTime.class), any(Pageable.class)))
-                .thenReturn(messagePage);
+                .thenReturn(messageSlice);
         
         // When: 초기 메시지 로드
         FetchMessagesRequest req = new FetchMessagesRequest(roomId, 30, null);
