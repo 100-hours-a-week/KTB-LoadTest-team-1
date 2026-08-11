@@ -24,7 +24,20 @@ const nextConfig = {
   // Docker 빌드를 위한 standalone 출력 모드 (개발 환경에는 영향 없음)
   output: 'standalone',
   // monorepo에서 standalone 빌드 시 중첩 경로 방지
-  outputFileTracingRoot: workspaceRoot
+  outputFileTracingRoot: workspaceRoot,
+  async headers() {
+    return [
+      {
+        source: '/images/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600, stale-while-revalidate=86400',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

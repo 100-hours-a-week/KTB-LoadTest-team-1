@@ -18,6 +18,7 @@ export const useRoomsSocket = ({
     if (!currentUser?.token) return;
 
     let isSubscribed = true;
+    let unsubscribe = () => {};
 
     const connectSocket = async () => {
       try {
@@ -74,6 +75,19 @@ export const useRoomsSocket = ({
         Object.entries(handlers).forEach(([event, handler]) => {
           socket.on(event, handler);
         });
+
+        unsubscribe = () => {
+          Object.entries(handlers).forEach(([event, handler]) => {
+            socket.off(event, handler);
+          });
+        };
+
+        // connect()는 connect 이벤트 뒤에 resolve되므로 위 핸들러를 등록하기 전에
+        // 최초 이벤트가 끝날 수 있다. 현재 상태를 즉시 반영해 health polling 없이도
+        // 입장 버튼을 사용할 수 있게 한다.
+        if (socket.connected) {
+          setConnectionStatus(CONNECTION_STATUS.CONNECTED);
+        }
       } catch (error) {
         if (!isSubscribed) return;
 
@@ -92,10 +106,8 @@ export const useRoomsSocket = ({
 
     return () => {
       isSubscribed = false;
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      unsubscribe();
+      socketRef.current = null;
     };
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 

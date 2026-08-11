@@ -1,17 +1,34 @@
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { ThemeProvider } from '@vapor-ui/core';
 import '@vapor-ui/core/styles.css';
 import '../styles/globals.css';
-import ChatHeader from '@/components/ChatHeader';
-import ToastContainer from '@/components/Toast';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { SocketProvider } from '@/lib/socket/SocketProvider';
 
-const AuthenticatedSocketProvider = ({ children }) => {
+// 로그인/회원가입은 Artillery를 포함해 새 브라우저가 가장 먼저 방문하는 경로다.
+// 채팅 전용 UI와 Socket.IO를 공통 번들에 넣지 않고 인증 이후에만 내려받는다.
+const ChatHeader = dynamic(() => import('@/components/ChatHeader'), { ssr: false });
+const ToastContainer = dynamic(() => import('@/components/Toast'), { ssr: false });
+const SocketProvider = dynamic(
+  () => import('@/lib/socket/SocketProvider').then((module) => module.SocketProvider),
+  { ssr: false },
+);
+
+const AuthenticatedApp = ({ children, showChrome }) => {
   const { user } = useAuth();
 
-  return <SocketProvider session={user}>{children}</SocketProvider>;
+  if (!showChrome) {
+    return children;
+  }
+
+  return (
+    <SocketProvider session={user}>
+      <ChatHeader />
+      {children}
+      <ToastContainer />
+    </SocketProvider>
+  );
 };
 
 function MyApp({ Component, pageProps }) {
@@ -22,17 +39,15 @@ function MyApp({ Component, pageProps }) {
     return <Component {...pageProps} />;
   }
 
-  // 로그인/회원가입 페이지에서는 헤더 숨김
-  const showHeader = !['/', '/register'].includes(router.pathname);
+  // 인증 화면은 채팅 전용 chrome과 socket 번들을 로드하지 않는다.
+  const showChrome = !['/', '/login', '/register'].includes(router.pathname);
 
   return (
     <ThemeProvider defaultTheme="dark">
       <AuthProvider>
-        <AuthenticatedSocketProvider>
-          {showHeader && <ChatHeader />}
+        <AuthenticatedApp showChrome={showChrome}>
           <Component {...pageProps} />
-          <ToastContainer />
-        </AuthenticatedSocketProvider>
+        </AuthenticatedApp>
       </AuthProvider>
     </ThemeProvider>
   );

@@ -177,7 +177,6 @@ export const useRoomHandling = ({
         timeout: 10000,
         pingTimeout: 10000,
         pingInterval: 8000,
-        forceNew: true,
         autoConnect: true,
       });
 
@@ -387,11 +386,6 @@ export const useRoomHandling = ({
 
           setupFailed(errorMessage);
           cleanup('ERROR');
-
-          if (socketRef.current) {
-            socketRef.current.disconnect();
-            attachSocket(null);
-          }
         }
 
         throw error;
@@ -436,12 +430,9 @@ export const useRoomHandling = ({
         roomEventsUnsubscribeRef.current = null;
       }
 
-      // 언마운트 경로는 attachSocket 을 쓰지 않는다. 사라지는 컴포넌트에
-       // 소켓 교체를 통지할 구독자가 없다.
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      // 연결은 앱 전역 singleton이 소유한다. 화면 전환에서는 방 이벤트만 해제하고
+      // transport는 유지해 다음 목록/방 화면이 handshake 없이 재사용한다.
+      socketRef.current = null;
     };
   }, []);
 
