@@ -5,6 +5,7 @@ import com.ktb.chatapp.service.ratelimit.RateLimitStore;
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,6 +50,14 @@ public class RateLimitService {
         Instant expiresAt = now.plusSeconds(windowSeconds);
 
         try {
+            // 저장소가 원자적 확인+증가를 지원하면(Redis) 그걸 우선 쓴다 — 아래 find+check+save는
+            // 동시 요청 간 경쟁 조건이 있는 폴백 경로다(Mongo 등 원자적 카운터가 없는 저장소용).
+            Optional<RateLimitCheckResult> atomicResult =
+                    rateLimitStore.tryAtomicCheckAndIncrement(actualClientId, maxRequests, windowSeconds);
+            if (atomicResult.isPresent()) {
+                return atomicResult.get();
+            }
+
             RateLimit rateLimit = rateLimitStore.findByClientId(actualClientId).orElse(null);
             if (rateLimit != null && !rateLimit.getExpiresAt().isAfter(now)) {
                 rateLimit.setCount(0);

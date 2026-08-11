@@ -4,6 +4,7 @@ import com.ktb.chatapp.model.RateLimit;
 import com.ktb.chatapp.repository.RateLimitRepository;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
  * Uses RateLimitRepository for persistence.
  */
 @Component
+@ConditionalOnProperty(name = "ratelimit.store.type", havingValue = "mongo", matchIfMissing = true)
 @RequiredArgsConstructor
 public class RateLimitMongoStore implements RateLimitStore {
     
