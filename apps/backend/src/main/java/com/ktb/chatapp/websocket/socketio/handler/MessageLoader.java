@@ -17,9 +17,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
@@ -59,10 +59,10 @@ public class MessageLoader {
             String userId) {
         Pageable pageable = PageRequest.of(0, limit, Sort.by("timestamp").descending());
 
-        Page<Message> messagePage = messageRepository
+        Slice<Message> messageSlice = messageRepository
                 .findByRoomIdAndTimestampBefore(roomId, before, pageable);
 
-        List<Message> messages = messagePage.getContent();
+        List<Message> messages = messageSlice.getContent();
 
         // DESC로 조회했으므로 ASC로 재정렬 (채팅 UI 표시 순서)
         List<Message> sortedMessages = messages.reversed();
@@ -88,7 +88,7 @@ public class MessageLoader {
                 })
                 .collect(Collectors.toList());
 
-        boolean hasMore = messagePage.hasNext();
+        boolean hasMore = messageSlice.hasNext();
 
         log.debug("Messages loaded - roomId: {}, limit: {}, count: {}, hasMore: {}",
                 roomId, limit, messageResponses.size(), hasMore);
