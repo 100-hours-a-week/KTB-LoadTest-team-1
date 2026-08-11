@@ -64,6 +64,7 @@ export default function ChatRoomsView({ router }) {
   const connectionCheckTimerRef = useRef(null);
   const initialFetchStartedRef = useRef(false);
   const refreshRoomsRef = useRef(refreshRooms);
+  const prefetchedRoomIdsRef = useRef(new Set());
 
   useEffect(() => {
     refreshRoomsRef.current = refreshRooms;
@@ -73,8 +74,13 @@ export default function ChatRoomsView({ router }) {
   // 뜨는 시점에 미리 채팅방 라우트를 프리페치해둬야, 클릭 시 router.push가 그 라우트의
   // RSC 응답을 새로 fetch하느라 지연되는 일(부하 상황에서 특히 두드러짐 — 서버가 여러
   // 클라이언트의 동시 진입 fetch를 처리하느라 밀리면 화면 전환 자체가 늦어짐)이 없다.
+  // rooms는 30초 자동 갱신·"더 보기"마다 새 배열 참조로 바뀌므로, 이미 프리페치한
+  // 방 ID는 건너뛴다 — 안 그러면 갱신마다 이미 캐시된 방까지 전부 다시 요청을 쏴서
+  // 부하 상황에서 오히려 서버에 불필요한 요청 폭주를 더하게 된다.
   useEffect(() => {
     rooms.forEach((room) => {
+      if (prefetchedRoomIdsRef.current.has(room._id)) return;
+      prefetchedRoomIdsRef.current.add(room._id);
       router.prefetch(`/chat/${room._id}`);
     });
   }, [rooms, router]);
