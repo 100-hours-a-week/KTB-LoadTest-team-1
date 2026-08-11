@@ -11,7 +11,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -74,7 +73,7 @@ public class ConnectionLoginHandler {
             log.info("Socket.IO user connected: {} ({}) - Total concurrent users: {}",
                     getUserName(client), userId, connectedUsers.size());
 
-            client.joinRooms(Set.of("user:" + userId, "room-list"));
+            client.joinRooms(Set.of("user:" + userId, "room-list", socketRoom(client)));
             
         } catch (Exception e) {
             log.error("Error handling Socket.IO connection", e);
@@ -107,7 +106,7 @@ public class ConnectionLoginHandler {
                 log.warn("Socket.IO disconnect: User {} has a different active connection. Skipping cleanup.", userId);
             }
 
-            client.leaveRooms(Set.of("user:" + userId, "room-list"));
+            client.leaveRooms(Set.of("user:" + userId, "room-list", socketRoom(client)));
             client.del("user");
             client.disconnect();
 
@@ -137,32 +136,30 @@ public class ConnectionLoginHandler {
     }
     
     /**
-     * TODO 멀티 클러스터에서 동작 안함
-     * socketIOServer.getRoomOperations("user:" + userId) 로 처리 변경.
+     * 기존 연결이 어느 인스턴스에 붙어있든 알림이 가야 해서, 로컬 JVM에만 붙은 클라이언트 핸들
+     * ({@code socketIOServer.getClient(UUID)})을 쓰지 않고, 접속 시 각 소켓이 자기 자신만 들어있는
+     * 전용 room({@link #socketRoom})에 join해두고 그 room으로 브로드캐스트한다 — RedissonStoreFactory
+     * 사용 시 room 브로드캐스트는 클러스터 전체로 전달된다.
      */
     private void notifyDuplicateLogin(SocketIOClient client, String userId) {
         var socketUser = connectedUsers.get(userId);
         if (socketUser == null) {
             return;
         }
-        String existingSocketId = socketUser.socketId();
-        SocketIOClient existingClient = socketIOServer.getClient(UUID.fromString(existingSocketId));
-        if (existingClient == null) {
-            return;
-        }
-        
+        String existingSocketRoom = "socket:" + socketUser.socketId();
+
         // Send duplicate login notification
-        existingClient.sendEvent(DUPLICATE_LOGIN, Map.of(
+        socketIOServer.getRoomOperations(existingSocketRoom).sendEvent(DUPLICATE_LOGIN, Map.of(
                 "type", "new_login_attempt",
                 "deviceInfo", client.getHandshakeData().getHttpHeaders().get("User-Agent"),
                 "ipAddress", client.getRemoteAddress().toString(),
                 "timestamp", System.currentTimeMillis()
         ));
-        
+
         new Thread(() -> {
             try {
                 Thread.sleep(Duration.ofSeconds(10));
-                existingClient.sendEvent(SESSION_ENDED, Map.of(
+                socketIOServer.getRoomOperations(existingSocketRoom).sendEvent(SESSION_ENDED, Map.of(
                         "reason", "duplicate_login",
                         "message", "다른 기기에서 로그인하여 현재 세션이 종료되었습니다."
                 ));
@@ -171,5 +168,9 @@ public class ConnectionLoginHandler {
                 log.error("Error in duplicate login notification thread", e);
             }
         }).start();
+    }
+
+    private String socketRoom(SocketIOClient client) {
+        return "socket:" + client.getSessionId();
     }
 }
