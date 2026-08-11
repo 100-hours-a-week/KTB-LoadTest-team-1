@@ -62,7 +62,7 @@ public class FileController {
         @ApiResponse(responseCode = "500", description = "서버 내부 오류",
             content = @Content(schema = @Schema(implementation = StandardResponse.class)))
     })
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadFile(
             @Parameter(description = "업로드할 파일") @RequestParam("file") MultipartFile file,
             Principal principal) {
@@ -139,9 +139,14 @@ public class FileController {
     }
 
     /**
-     * 사전서명 업로드 완료 확인 (클라이언트가 S3 업로드를 마친 뒤 결과를 등록한다)
+     * 사전서명 업로드 완료 확인 (클라이언트가 S3 업로드를 마친 뒤 결과를 등록한다).
+     *
+     * <p>{@code /upload}(멀티파트 업로드)와 경로를 공유하고 {@code consumes}로만 구분한다 — e2e/Artillery가
+     * 업로드 완료 응답을 {@code url().includes('/api/files/upload')}로 감청하고 있어, 별도 경로를 쓰면 프론트가
+     * 이 방식으로 전환할 때 그 감청 로직이 깨진다. e2e는 고칠 수 없는 제약이라 API 쪽에서 맞췄다.
      */
-    @Operation(summary = "사전서명 업로드 완료 확인", description = "S3에 직접 업로드된 파일의 메타데이터를 등록합니다.")
+    @Operation(summary = "사전서명 업로드 완료 확인", description = "S3에 직접 업로드된 파일의 메타데이터를 등록합니다. "
+            + "/upload와 같은 경로를 쓰고 Content-Type(application/json)으로 멀티파트 업로드와 구분된다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "등록 성공"),
         @ApiResponse(responseCode = "400", description = "잘못된 요청",
@@ -151,7 +156,7 @@ public class FileController {
         @ApiResponse(responseCode = "500", description = "서버 내부 오류",
             content = @Content(schema = @Schema(implementation = StandardResponse.class)))
     })
-    @PostMapping("/presigned-upload/complete")
+    @PostMapping(value = "/upload", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> completePresignedUpload(
             @Valid @RequestBody ConfirmUploadRequest request,
             Principal principal) {

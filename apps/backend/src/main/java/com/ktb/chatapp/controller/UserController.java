@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -124,7 +125,7 @@ public class UserController {
         @ApiResponse(responseCode = "500", description = "서버 내부 오류",
             content = @Content(schema = @Schema(implementation = StandardResponse.class)))
     })
-    @PostMapping("/profile-image")
+    @PostMapping(value = "/profile-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadProfileImage(
             Principal principal,
             @RequestParam("profileImage") MultipartFile file) {
@@ -159,7 +160,7 @@ public class UserController {
         @ApiResponse(responseCode = "500", description = "서버 내부 오류",
             content = @Content(schema = @Schema(implementation = StandardResponse.class)))
     })
-    @PostMapping("/profile-image/presigned-upload")
+    @PostMapping("/presigned-upload/profile-image")
     public ResponseEntity<?> issueProfileImagePresignedUpload(
             Principal principal,
             @Valid @RequestBody PresignedUploadRequest request) {
@@ -182,9 +183,15 @@ public class UserController {
     }
 
     /**
-     * 프로필 이미지 사전서명 업로드 완료 확인
+     * 프로필 이미지 사전서명 업로드 완료 확인.
+     *
+     * <p>{@code /profile-image}(멀티파트 업로드)와 경로를 공유하고 {@code consumes}로만 구분한다 —
+     * e2e가 업로드 응답을 {@code url().includes('/api/users/profile-image')}로 감청하고 있어, 별도
+     * 경로를 쓰면 프론트가 이 방식으로 전환할 때 그 감청 로직이 깨진다. e2e는 고칠 수 없는 제약이라
+     * API 쪽에서 맞췄다.
      */
-    @Operation(summary = "프로필 이미지 사전서명 업로드 완료 확인", description = "S3에 직접 업로드된 프로필 이미지를 등록합니다.")
+    @Operation(summary = "프로필 이미지 사전서명 업로드 완료 확인", description = "S3에 직접 업로드된 프로필 이미지를 등록합니다. "
+            + "/profile-image와 같은 경로를 쓰고 Content-Type(application/json)으로 멀티파트 업로드와 구분된다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "등록 성공",
             content = @Content(schema = @Schema(implementation = ProfileImageResponse.class))),
@@ -197,7 +204,7 @@ public class UserController {
         @ApiResponse(responseCode = "500", description = "서버 내부 오류",
             content = @Content(schema = @Schema(implementation = StandardResponse.class)))
     })
-    @PostMapping("/profile-image/presigned-upload/complete")
+    @PostMapping(value = "/profile-image", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> completeProfileImagePresignedUpload(
             Principal principal,
             @Valid @RequestBody ConfirmUploadRequest request) {
