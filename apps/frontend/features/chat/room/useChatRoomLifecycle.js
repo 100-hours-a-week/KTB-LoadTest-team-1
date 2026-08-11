@@ -105,15 +105,14 @@ export const useChatRoomLifecycle = ({
 
       // 최초 진입이면 방 데이터·구독·입장을 모두 세운다.
       if (!isInitialized) {
-        setupRoom().catch(() => {
-          setError('채팅방 연결에 실패했습니다.');
-        });
+        // setupRoom이 원인별 오류를 이미 상태에 반영한다.
+        setupRoom().catch(() => {});
         return;
       }
 
       // 재연결이면 소켓은 socket.io 가 이미 되살렸다. 방에만 다시 들어간다.
-      rejoinRoom().catch(() => {
-        setError('채팅방 재연결에 실패했습니다.');
+      rejoinRoom().catch((error) => {
+        setError(error?.message || '채팅방 재연결에 실패했습니다.');
       });
     };
 
@@ -200,8 +199,8 @@ export const useChatRoomLifecycle = ({
         try {
           initializingRef.current = true;
           await setupRoom();
-        } catch (error) {
-          setError('채팅방 초기화에 실패했습니다.');
+        } catch {
+          // setupRoom에서 저장한 소켓·입장·메시지 로딩 오류를 보존한다.
         } finally {
           initializingRef.current = false;
         }

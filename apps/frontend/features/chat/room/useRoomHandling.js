@@ -44,9 +44,14 @@ export const useRoomHandling = ({
   const setupPromiseRef = useRef(null);
   const roomEventsUnsubscribeRef = useRef(null);
   const MAX_SOCKET_RECONNECT_ATTEMPTS = 3;
-  const MAX_MESSAGE_RETRY_ATTEMPTS = 3;
+  const MAX_MESSAGE_RETRY_ATTEMPTS = 1;
   const MESSAGE_TIMEOUT = 5000;
-  const MESSAGE_RETRY_DELAY = 2000;
+  const MESSAGE_RETRY_DELAY = 1000;
+
+  const isRetryableMessageLoadError = useCallback((error) => {
+    const message = error?.message || '';
+    return message.includes('시간이 초과') || message.includes('지연되고');
+  }, []);
 
   const processMessages = useCallback(
     (loadedMessages, hasMore, isInitialLoad = false) => {
@@ -299,7 +304,10 @@ export const useRoomHandling = ({
           processMessages(response.messages, response.hasMore, true);
           return response;
         } catch (error) {
-          if (retryCount < MAX_MESSAGE_RETRY_ATTEMPTS) {
+          if (
+            isRetryableMessageLoadError(error) &&
+            retryCount < MAX_MESSAGE_RETRY_ATTEMPTS
+          ) {
             await new Promise((resolve) =>
               setTimeout(resolve, MESSAGE_RETRY_DELAY)
             );
@@ -322,7 +330,7 @@ export const useRoomHandling = ({
         throw error;
       }
     },
-    [socketRef, attachSocket, processMessages, setupSocket]
+    [socketRef, attachSocket, processMessages, setupSocket, isRetryableMessageLoadError]
   );
 
   const setupRoom = useCallback(async () => {
@@ -381,9 +389,7 @@ export const useRoomHandling = ({
         }
       } catch (error) {
         if (mountedRef.current) {
-          const errorMessage = error.message.includes('시간 초과')
-            ? '채팅방 연결 시간이 초과되었습니다.'
-            : error.message || '채팅방 연결에 실패했습니다.';
+          const errorMessage = error?.message || '채팅방 연결에 실패했습니다.';
 
           setupFailed(errorMessage);
           cleanup('ERROR');
