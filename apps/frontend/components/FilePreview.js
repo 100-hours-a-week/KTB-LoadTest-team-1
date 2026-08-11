@@ -215,7 +215,7 @@ const FilePreview = ({
             className="w-full h-full object-cover"
             onError={(e) => {
               e.target.onerror = null;
-              e.target.src = '/placeholder-image.png';
+              e.target.src = '/images/placeholder-image.png';
               e.target.alt = '이미지 로드 실패';
             }}
             loading="lazy"
