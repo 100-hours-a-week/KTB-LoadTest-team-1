@@ -24,7 +24,12 @@ const nextConfig = {
   // Docker 빌드를 위한 standalone 출력 모드 (개발 환경에는 영향 없음)
   output: 'standalone',
   // monorepo에서 standalone 빌드 시 중첩 경로 방지
-  outputFileTracingRoot: workspaceRoot
+  outputFileTracingRoot: workspaceRoot,
+  // 정적 자산(_next/static)을 CDN(CloudFront → ktb-chat-nextjs-assets 버킷)에서 서빙한다.
+  // dev 서버는 이 CDN에 자산을 올리지 않으므로 production 빌드에서만 적용한다.
+  assetPrefix: process.env.NODE_ENV === 'production'
+    ? 'https://d27gb4vxgiasxt.cloudfront.net'
+    : undefined
 };
 
 module.exports = nextConfig;
