@@ -51,14 +51,19 @@ const Register = () => {
     try {
       const { name, email, password } = formData;
       await registerContext({ name, email, password });
-      
-      setSuccess(true);
-      setLoading(false);
 
-      await router.replace('/');
+      setSuccess(true);
     } catch (err) {
       setError(err.message || '회원가입 처리 중 오류가 발생했습니다.');
+      return;
+    } finally {
       setLoading(false);
+    }
+
+    try {
+      await router.replace('/');
+    } catch (navigationError) {
+      console.error('Registration navigation error:', navigationError);
     }
   };
 
