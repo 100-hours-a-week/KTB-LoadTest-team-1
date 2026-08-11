@@ -20,6 +20,8 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -42,6 +44,33 @@ jobs:
       - name: Test frontend
         run: pnpm --dir apps/frontend test
 
+      - name: Configure AWS credentials
+        if: ${{ vars.CDN_ASSET_PREFIX != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+
+      - name: Build and upload Next.js static assets
+        if: ${{ vars.CDN_ASSET_PREFIX != '' }}
+        env:
+          CDN_ASSET_PREFIX: ${{ vars.CDN_ASSET_PREFIX }}
+          CDN_ASSET_BUCKET: ${{ vars.CDN_ASSET_BUCKET }}
+          DEPLOY_BUILD_ID: ${{ github.sha }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_SOCKET_URL: ${{ secrets.NEXT_PUBLIC_SOCKET_URL }}
+        run: |
+          set -eu
+          test -n "${CDN_ASSET_BUCKET}" || {
+            echo "CDN_ASSET_BUCKET variable is required when CDN_ASSET_PREFIX is set"
+            exit 1
+          }
+          pnpm --dir apps/frontend build
+          aws s3 sync apps/frontend/.next/static \
+            "s3://${CDN_ASSET_BUCKET}/_next/static" \
+            --cache-control "public,max-age=31536000,immutable"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -58,6 +87,8 @@ jobs:
           file: ./apps/frontend/Dockerfile
           push: true
           build-args: |
+            CDN_ASSET_PREFIX=${{ vars.CDN_ASSET_PREFIX }}
+            DEPLOY_BUILD_ID=${{ github.sha }}
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
             NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }}
           tags: |
