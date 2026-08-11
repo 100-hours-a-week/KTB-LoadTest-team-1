@@ -45,6 +45,7 @@ class RoomJoinHandlerTest {
     @Mock private MessageLoader messageLoader;
     @Mock private MessageResponseMapper messageResponseMapper;
     @Mock private RoomLeaveHandler roomLeaveHandler;
+    @Mock private ParticipantListMapper participantListMapper;
     @Mock private SocketIOClient client;
     @Mock private BroadcastOperations roomOperations;
 
@@ -60,7 +61,8 @@ class RoomJoinHandlerTest {
                 userRooms,
                 messageLoader,
                 messageResponseMapper,
-                roomLeaveHandler);
+                roomLeaveHandler,
+                participantListMapper);
     }
 
     @Test

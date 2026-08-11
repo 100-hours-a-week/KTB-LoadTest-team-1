@@ -4,7 +4,6 @@ import com.corundumstudio.socketio.SocketIOClient;
 import com.corundumstudio.socketio.SocketIOServer;
 import com.corundumstudio.socketio.annotation.OnEvent;
 import com.ktb.chatapp.dto.MessageResponse;
-import com.ktb.chatapp.dto.UserResponse;
 import com.ktb.chatapp.model.Message;
 import com.ktb.chatapp.model.MessageType;
 import com.ktb.chatapp.model.Room;
@@ -42,6 +41,7 @@ public class RoomLeaveHandler {
     private final UserRepository userRepository;
     private final UserRooms userRooms;
     private final MessageResponseMapper messageResponseMapper;
+    private final ParticipantListMapper participantListMapper;
     
     @OnEvent(LEAVE_ROOM)
     public void handleLeaveRoom(SocketIOClient client, String roomId) {
@@ -113,16 +113,9 @@ public class RoomLeaveHandler {
         if (roomOpt.isEmpty()) {
             return;
         }
-        
-        var participantList = roomOpt.get()
-                .getParticipantIds()
-                .stream()
-                .map(userRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .map(UserResponse::from)
-                .toList();
-        
+
+        var participantList = participantListMapper.toParticipantList(roomOpt.get());
+
         if (participantList.isEmpty()) {
             return;
         }
