@@ -1,0 +1,30 @@
+# Dependencies and generated build output
+node_modules/
+.next/
+target/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.template
+
+# Generated Maven wrapper binary
+apps/backend/.mvn/wrapper/maven-wrapper.jar
+
+# Test and load-test output
+test-results/
+playwright-report/
+blob-report/
+results/*
+!results/README-baseline.md
+
+# Local logs and operating-system files
+*.log
+.DS_Store
+package-lock.json
+
+# Python cache
+__pycache__/
+*.pyc
