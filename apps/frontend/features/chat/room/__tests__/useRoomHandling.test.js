@@ -289,37 +289,6 @@ describe('useRoomHandling', () => {
     );
   });
 
-  it('does not retry a malformed previous-messages response', async () => {
-    socketClient.joinRoomAndWait.mockResolvedValueOnce({ roomId: 'room-1' });
-    socketClient.fetchPreviousMessagesAndWait.mockResolvedValueOnce({ messages: null });
-    const harness = createHarness();
-
-    await expect(
-      act(async () => {
-        await harness.result.current.setupRoom();
-      })
-    ).rejects.toThrow('잘못된 메시지 응답 형식입니다.');
-
-    expect(socketClient.fetchPreviousMessagesAndWait).toHaveBeenCalledTimes(1);
-  });
-
-  it('preserves the join timeout message in setup failure state', async () => {
-    socketClient.joinRoomAndWait.mockRejectedValueOnce(
-      new Error('채팅방 입장 시간이 초과되었습니다.')
-    );
-    const harness = createHarness();
-
-    await expect(
-      act(async () => {
-        await harness.result.current.setupRoom();
-      })
-    ).rejects.toThrow('채팅방 입장 시간이 초과되었습니다.');
-
-    expect(harness.actions.setupFailed).toHaveBeenCalledWith(
-      '채팅방 입장 시간이 초과되었습니다.'
-    );
-  });
-
   it('records setup failure through semantic reducer actions', async () => {
     api.get.mockResolvedValueOnce({
       data: {

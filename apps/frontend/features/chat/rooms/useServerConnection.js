@@ -37,8 +37,7 @@ export const useServerConnection = () => {
 
       const response = await axiosInstance.get('/api/health', {
         timeout: HEALTH_TIMEOUT_MS,
-        // health 재시도는 이 훅에서만 관리해 공통 GET 재시도와 중첩되지 않게 한다.
-        skipRetry: true,
+        retries: 1,
       });
 
       if (response?.status === 401) {

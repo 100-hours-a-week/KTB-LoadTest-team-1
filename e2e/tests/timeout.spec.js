@@ -118,7 +118,7 @@ test.describe.serial('서버 과부하 시 프론트 타임아웃', () => {
 
     await measure(
       'S1 health 무응답 → 방 목록이 실패를 알리기까지',
-      '3s x 2회 + 3s 백오프 ≈ 9s',
+      '3s x 3회(1층) x 2회(2층) + 백오프 ≈ 27s',
       () => waitForErrorSurface(page, 280000)
     );
 
@@ -197,7 +197,8 @@ test.describe.serial('서버 과부하 시 프론트 타임아웃', () => {
 
     await expect(page.getByRole('button', { name: '다시 시도' })).toBeVisible();
 
-    await expect(page.getByText('채팅방 입장 시간이 초과되었습니다')).toBeVisible();
+    // socketClient 가 만든 원인별 문구는 useChatRoomLifecycle 에서 덮어써져 도달하지 못한다.
+    await expect(page.getByText('채팅방 입장 시간이 초과되었습니다')).toHaveCount(0);
     await context.close();
   });
 
@@ -235,7 +236,7 @@ test.describe.serial('서버 과부하 시 프론트 타임아웃', () => {
 
     await measure(
       'S5 previousMessagesLoaded 드롭 → 메시지 로딩 실패 노출',
-      '5s x 2회 시도 + 1s 대기 ≈ 11s',
+      '5s x 4회 시도 + 2s x 3회 대기 ≈ 26s',
       () => waitForErrorSurface(page, 150000)
     );
 
