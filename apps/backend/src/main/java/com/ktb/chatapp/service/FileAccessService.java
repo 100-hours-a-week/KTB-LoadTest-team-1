@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.stereotype.Service;
@@ -28,13 +29,14 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class FileAccessService {
 
-    /** 오프로딩 URL 수명. 발급 직후 곧바로 소비되는 흐름이므로 유출 창을 짧게 유지한다. */
-    static final Duration OFFLOAD_URL_TTL = Duration.ofMinutes(5);
-
     private final StoragePort storagePort;
     private final FileRepository fileRepository;
     private final MessageRepository messageRepository;
     private final RoomRepository roomRepository;
+
+    /** 오프로딩 URL 수명. 발급 직후 곧바로 소비되는 흐름이므로 유출 창을 짧게 유지한다. */
+    @Value("${aws.s3.presign-download-ttl-seconds}")
+    long presignDownloadTtlSeconds;
 
     public FileAccess forDownload(String fileName, String requesterId) {
         return issue(authorize(fileName, requesterId), Delivery.ATTACHMENT, fileName, requesterId);
@@ -87,7 +89,7 @@ public class FileAccessService {
 
     private FileAccess issue(File fileEntity, Delivery delivery, String fileName, String requesterId) {
         Optional<URI> offloadUrl = storagePort.offloadUrl(
-                fileEntity.getPath(), OFFLOAD_URL_TTL, delivery.of(fileEntity.getOriginalname()));
+                fileEntity.getPath(), Duration.ofSeconds(presignDownloadTtlSeconds), delivery.of(fileEntity.getOriginalname()));
         if (offloadUrl.isPresent()) {
             log.info("파일 오프로딩 URL 발급: {} (사용자: {})", fileName, requesterId);
             return new FileAccess.Redirect(offloadUrl.get());
