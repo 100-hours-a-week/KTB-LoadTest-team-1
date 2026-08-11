@@ -20,4 +20,11 @@ public interface StoragePort {
     default Optional<URI> offloadUrl(String key, Duration ttl, ContentDisposition disposition) {
         return Optional.empty();
     }
+
+    /**
+     * 사전서명 업로드 확장 지점. 지원하지 않으면 클라이언트는 서버로 직접 바이트를 보내야 한다.
+     */
+    default Optional<PresignedUpload> createUploadUrl(String key, String contentType, Duration ttl) {
+        return Optional.empty();
+    }
 }
