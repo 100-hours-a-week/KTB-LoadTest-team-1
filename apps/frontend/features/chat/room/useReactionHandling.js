@@ -2,28 +2,29 @@ import { useCallback, useState } from 'react';
 import { Toast } from '@/components/Toast';
 import socketClient from '@/lib/socket/socketClient';
 
-export const useReactionHandling = ({ currentUser, messages, setMessages }) => {
+export const useReactionHandling = ({ currentUser, setMessages }) => {
   const [pendingReactions] = useState(new Map());
 
   const handleReactionAdd = useCallback(async (messageId, reaction) => {
+    let previousReactions;
     try {
       if (!socketClient.canSend()) {
         throw new Error('Socket not connected');
       }
 
-      // 낙관적 업데이트
+      // 낙관적 업데이트 (롤백용 원본 reactions를 이 시점에 캡처)
       setMessages(prevMessages =>
         prevMessages.map(msg => {
           if (msg._id === messageId) {
-            const currentReactions = msg.reactions || {};
-            const currentUsers = currentReactions[reaction] || [];
+            previousReactions = msg.reactions || {};
+            const currentUsers = previousReactions[reaction] || [];
 
             // 중복 추가 방지
             if (!currentUsers.includes(currentUser.id)) {
               return {
                 ...msg,
                 reactions: {
-                  ...currentReactions,
+                  ...previousReactions,
                   [reaction]: [...currentUsers, currentUser.id]
                 }
               };
@@ -43,29 +44,30 @@ export const useReactionHandling = ({ currentUser, messages, setMessages }) => {
       setMessages(prevMessages =>
         prevMessages.map(msg =>
           msg._id === messageId ?
-          { ...msg, reactions: messages.find(m => m._id === messageId)?.reactions || {} } :
+          { ...msg, reactions: previousReactions ?? {} } :
           msg
         )
       );
     }
-  }, [currentUser, messages, setMessages]);
+  }, [currentUser, setMessages]);
 
   const handleReactionRemove = useCallback(async (messageId, reaction) => {
+    let previousReactions;
     try {
       if (!socketClient.canSend()) {
         throw new Error('Socket not connected');
       }
 
-      // 낙관적 업데이트
+      // 낙관적 업데이트 (롤백용 원본 reactions를 이 시점에 캡처)
       setMessages(prevMessages =>
         prevMessages.map(msg => {
           if (msg._id === messageId) {
-            const currentReactions = msg.reactions || {};
-            const currentUsers = currentReactions[reaction] || [];
+            previousReactions = msg.reactions || {};
+            const currentUsers = previousReactions[reaction] || [];
             return {
               ...msg,
               reactions: {
-                ...currentReactions,
+                ...previousReactions,
                 [reaction]: currentUsers.filter(id => id !== currentUser.id)
               }
             };
@@ -84,12 +86,12 @@ export const useReactionHandling = ({ currentUser, messages, setMessages }) => {
       setMessages(prevMessages =>
         prevMessages.map(msg =>
           msg._id === messageId ?
-          { ...msg, reactions: messages.find(m => m._id === messageId)?.reactions || {} } :
+          { ...msg, reactions: previousReactions ?? {} } :
           msg
         )
       );
     }
-  }, [currentUser, messages, setMessages]);
+  }, [currentUser, setMessages]);
 
   const handleReactionUpdate = useCallback(({ messageId, reactions }) => {
     setMessages(prevMessages =>
