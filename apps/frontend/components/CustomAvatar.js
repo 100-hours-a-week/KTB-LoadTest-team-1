@@ -142,6 +142,8 @@ const CustomAvatar = forwardRef(({
         <Avatar.ImagePrimitive 
           onError={persistent ? handleImageError : undefined}
           alt={imageAlt}
+          loading="lazy"
+          decoding="async"
         />
       )}
       <Avatar.FallbackPrimitive style={{ backgroundColor, color, fontWeight: '500' }}>

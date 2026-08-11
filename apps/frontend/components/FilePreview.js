@@ -219,6 +219,7 @@ const FilePreview = ({
               e.target.alt = '이미지 로드 실패';
             }}
             loading="lazy"
+            decoding="async"
           />
         </div>
       );

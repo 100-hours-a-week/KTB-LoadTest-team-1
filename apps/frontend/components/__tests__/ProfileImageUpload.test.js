@@ -80,7 +80,12 @@ describe('ProfileImageUpload', () => {
     expect(axiosPut).toHaveBeenCalledWith(
       'https://bucket.s3.ap-northeast-2.amazonaws.com/profiles/avatar.png?X-Amz-Signature=1',
       expect.anything(),
-      expect.objectContaining({ headers: { 'Content-Type': 'image/png' } })
+      expect.objectContaining({
+        headers: {
+          'Content-Type': 'image/png',
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+      })
     );
 
     expect(apiPost).toHaveBeenNthCalledWith(2, '/api/users/profile-image', {

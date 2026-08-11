@@ -7,6 +7,9 @@ import CustomAvatar from '@/components/CustomAvatar';
 import { Toast } from '@/components/Toast';
 import api from '@/lib/api/client';
 import { saveStoredUser } from '@/lib/auth/authStorage';
+import { IMAGE_OPTIMIZATION_PRESETS, optimizeImageForUpload } from '@/utils/imageOptimization';
+
+const PROFILE_IMAGE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 
 const ProfileImageUpload = ({ currentImage, onImageChange }) => {
   const { user } = useAuth();
@@ -51,6 +54,8 @@ const ProfileImageUpload = ({ currentImage, onImageChange }) => {
       const objectUrl = URL.createObjectURL(file);
       setPreviewUrl(objectUrl);
 
+      const uploadFile = await optimizeImageForUpload(file, IMAGE_OPTIMIZATION_PRESETS.profile);
+
       // 인증 정보 확인
       if (!user?.token) {
         throw new Error('인증 정보가 없습니다.');
@@ -59,9 +64,9 @@ const ProfileImageUpload = ({ currentImage, onImageChange }) => {
       // presigned URL 업로드 3단계: 발급(인증된 인스턴스) → S3 직접 PUT(plain axios) →
       // 확인(기존 /api/users/profile-image와 같은 URL, JSON body로 구분).
       const issueResponse = await api.post('/api/users/presigned-upload/profile-image', {
-        filename: file.name,
-        contentType: file.type,
-        size: file.size,
+        filename: uploadFile.name,
+        contentType: uploadFile.type,
+        size: uploadFile.size,
       });
 
       if (!issueResponse.data?.success) {
@@ -72,17 +77,18 @@ const ProfileImageUpload = ({ currentImage, onImageChange }) => {
 
       // S3로 직접 PUT — baseURL/인증 헤더가 붙은 api 인스턴스를 쓰면 S3가 거부하므로
       // 절대 URL을 plain axios로 호출한다.
-      await axios.put(uploadUrl, file, {
+      await axios.put(uploadUrl, uploadFile, {
         headers: {
-          'Content-Type': file.type,
+          'Content-Type': uploadFile.type,
+          'Cache-Control': PROFILE_IMAGE_CACHE_CONTROL,
         },
       });
 
       const response = await api.post('/api/users/profile-image', {
         key,
-        filename: file.name,
-        contentType: file.type,
-        size: file.size,
+        filename: uploadFile.name,
+        contentType: uploadFile.type,
+        size: uploadFile.size,
       });
 
       const data = response.data;

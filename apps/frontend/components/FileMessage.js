@@ -190,6 +190,7 @@ const FileMessage = ({
               setError('이미지를 불러올 수 없습니다.');
             }}
             loading="lazy"
+            decoding="async"
             data-testid="file-image-preview"
           />
         </div>

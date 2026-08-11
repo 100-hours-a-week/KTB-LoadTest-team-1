@@ -1,6 +1,9 @@
 import axios, { isCancel, CancelToken } from 'axios';
 import axiosInstance from './axios';
 import { Toast } from '../components/Toast';
+import { IMAGE_OPTIMIZATION_PRESETS, optimizeImageForUpload } from '../utils/imageOptimization';
+
+const CHAT_FILE_CACHE_CONTROL = 'private, max-age=240';
 
 class FileService {
   constructor() {
@@ -83,6 +86,14 @@ class FileService {
       return validationResult;
     }
 
+    const uploadFile = await optimizeImageForUpload(file, IMAGE_OPTIMIZATION_PRESETS.chat);
+    if (uploadFile !== file) {
+      const optimizedValidationResult = await this.validateFile(uploadFile);
+      if (!optimizedValidationResult.success) {
+        return optimizedValidationResult;
+      }
+    }
+
     const source = CancelToken.source();
     this.activeUploads.set(file.name, source);
 
@@ -92,9 +103,9 @@ class FileService {
         '/api/files/presigned-upload';
 
       const issueResponse = await axiosInstance.post(issueUrl, {
-        filename: file.name,
-        contentType: file.type,
-        size: file.size
+        filename: uploadFile.name,
+        contentType: uploadFile.type,
+        size: uploadFile.size
       });
 
       if (!issueResponse.data?.success) {
@@ -108,9 +119,10 @@ class FileService {
 
       // S3로 직접 PUT — baseURL/인증 헤더가 붙은 axiosInstance를 쓰면 S3가 거부하므로
       // 절대 URL을 plain axios로 호출한다.
-      await axios.put(uploadUrl, file, {
+      await axios.put(uploadUrl, uploadFile, {
         headers: {
-          'Content-Type': file.type
+          'Content-Type': uploadFile.type,
+          'Cache-Control': CHAT_FILE_CACHE_CONTROL
         },
         timeout: 30000,
         cancelToken: source.token,
@@ -130,9 +142,9 @@ class FileService {
 
       const confirmResponse = await axiosInstance.post(confirmUrl, {
         key,
-        filename: file.name,
-        contentType: file.type,
-        size: file.size
+        filename: uploadFile.name,
+        contentType: uploadFile.type,
+        size: uploadFile.size
       });
 
       this.activeUploads.delete(file.name);
