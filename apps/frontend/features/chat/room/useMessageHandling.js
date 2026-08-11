@@ -61,7 +61,7 @@ export const useMessageHandling = (
     setMessages(prev => appendIncomingMessage(prev, confirmedMessage));
   }, [processedMessageIds, setMessages]);
 
-  const handleLoadMore = useCallback(() => {
+  const handleLoadMore = useCallback(async () => {
     if (!canSendOnRoomSocket()) {
       return;
     }
@@ -83,8 +83,10 @@ export const useMessageHandling = (
     setLoadingMessages(true);
 
     try {
-      // Socket.IO 이벤트만 발행 - 응답은 useChatRoom의 previousMessagesLoaded 이벤트 핸들러에서 처리
-      socketClient.fetchPreviousMessages({
+      // 실제 메시지 반영은 useChatRoom의 previousMessagesLoaded 상시 리스너가 처리한다.
+      // 여기서는 서버가 응답을 아예 못 주는 경우(타임아웃)를 감지해 loadingMessages가
+      // 영원히 true로 남아 무한 스크롤이 다시는 동작하지 않는 걸 막는 용도로만 기다린다.
+      await socketClient.fetchPreviousMessagesAndWait({
         roomId: roomId,
         before: beforeTimestamp,
         limit: 30
@@ -92,6 +94,7 @@ export const useMessageHandling = (
     } catch (error) {
       loadingRef.current = false;
       setLoadingMessages(false);
+      Toast.error(error.message || '이전 메시지를 불러오지 못했습니다.');
     }
   }, [roomId, loadingMessages, setLoadingMessages, canSendOnRoomSocket, getRoomSocket]);
 
