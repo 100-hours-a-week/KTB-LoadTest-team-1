@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,10 +19,11 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class LocalFileService implements FileService {
 
-    private static final Duration PRESIGNED_UPLOAD_TTL = Duration.ofMinutes(5);
-
     private final StoragePort storagePort;
     private final FileRepository fileRepository;
+
+    @Value("${aws.s3.presign-upload-ttl-seconds}")
+    private long presignUploadTtlSeconds;
 
     public LocalFileService(StoragePort storagePort, FileRepository fileRepository) {
         this.storagePort = storagePort;
@@ -115,7 +117,7 @@ public class LocalFileService implements FileService {
         String safeFileName = FileUtil.generateSafeFileName(cleanedFilename);
         String key = StorageKey.chat(safeFileName);
 
-        return storagePort.createUploadUrl(key, contentType, PRESIGNED_UPLOAD_TTL)
+        return storagePort.createUploadUrl(key, contentType, Duration.ofSeconds(presignUploadTtlSeconds))
                 .orElseThrow(() -> new RuntimeException("현재 스토리지에서는 사전서명 업로드를 지원하지 않습니다."));
     }
 

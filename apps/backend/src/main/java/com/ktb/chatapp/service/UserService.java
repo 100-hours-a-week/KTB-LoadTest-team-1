@@ -27,14 +27,15 @@ import java.util.List;
 @Slf4j
 public class UserService {
 
-    private static final Duration PRESIGNED_UPLOAD_TTL = Duration.ofMinutes(5);
-
     private final UserRepository userRepository;
     private final FileService fileService;
     private final StoragePort storagePort;
 
     @Value("${app.profile.image.max-size:5242880}") // 5MB
     private long maxProfileImageSize;
+
+    @Value("${aws.s3.presign-upload-ttl-seconds}")
+    private long presignUploadTtlSeconds;
 
     private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList(
             "jpg", "jpeg", "png", "gif", "webp"
@@ -111,7 +112,7 @@ public class UserService {
         String safeFileName = FileUtil.generateSafeFileName(cleanedFilename);
         String key = StorageKey.profile(safeFileName);
 
-        return storagePort.createUploadUrl(key, contentType, PRESIGNED_UPLOAD_TTL)
+        return storagePort.createUploadUrl(key, contentType, Duration.ofSeconds(presignUploadTtlSeconds))
                 .orElseThrow(() -> new RuntimeException("현재 스토리지에서는 사전서명 업로드를 지원하지 않습니다."));
     }
 

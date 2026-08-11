@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * 3홉 인가(파일→메시지→방→참가자)와 오프로딩 스위치의 상호작용을 고정한다.
@@ -44,6 +45,7 @@ class FileAccessServiceTest {
     private static final String OUTSIDER = "outsider-id";
     private static final String ORIGINAL_NAME = "여행 사진.png";
     private static final long SIZE = 4242L;
+    private static final long PRESIGN_DOWNLOAD_TTL_SECONDS = 300L;
     private static final URI OFFLOADED_URL = URI.create("https://cdn.example.test/" + KEY + "?sig=stub");
     private static final Resource STORED_BYTES =
             new ByteArrayResource("photo-bytes".getBytes(StandardCharsets.UTF_8));
@@ -123,8 +125,8 @@ class FileAccessServiceTest {
 
         service.forDownload(FILE_NAME, PARTICIPANT);
 
-        assertThat(storage.offloadedTtl).isEqualTo(FileAccessService.OFFLOAD_URL_TTL);
-        assertThat(FileAccessService.OFFLOAD_URL_TTL)
+        assertThat(storage.offloadedTtl).isEqualTo(Duration.ofSeconds(PRESIGN_DOWNLOAD_TTL_SECONDS));
+        assertThat(storage.offloadedTtl)
                 .isGreaterThan(Duration.ZERO)
                 .isLessThanOrEqualTo(Duration.ofMinutes(10));
     }
@@ -211,7 +213,10 @@ class FileAccessServiceTest {
                 Message.builder().id("message-id").roomId(ROOM_ID).fileId(FILE_ID).build()));
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(
                 Room.builder().id(ROOM_ID).participantIds(Set.of(PARTICIPANT)).build()));
-        return new FileAccessService(storagePort, fileRepository, messageRepository, roomRepository);
+        FileAccessService service =
+                new FileAccessService(storagePort, fileRepository, messageRepository, roomRepository);
+        ReflectionTestUtils.setField(service, "presignDownloadTtlSeconds", PRESIGN_DOWNLOAD_TTL_SECONDS);
+        return service;
     }
 
     private File fileEntity(String mimetype) {

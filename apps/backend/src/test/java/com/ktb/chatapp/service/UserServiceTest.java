@@ -50,6 +50,7 @@ class UserServiceTest {
     void setUp() {
         userService = new UserService(userRepository, fileService, new LocalStorage(uploadDir.toString()));
         ReflectionTestUtils.setField(userService, "maxProfileImageSize", 5242880L);
+        ReflectionTestUtils.setField(userService, "presignUploadTtlSeconds", 300L);
     }
 
     private Path createOldProfileImageFile(String fileName) throws IOException {
