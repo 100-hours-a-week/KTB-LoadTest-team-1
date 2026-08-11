@@ -11,7 +11,7 @@ vi.mock('@/services/axios', () => ({
   },
 }));
 
-const roomsResponse = (rooms) => ({ data: { data: rooms } });
+const roomsResponse = (rooms, metadata = {}) => ({ data: { data: rooms, metadata } });
 
 const renderRoomList = () =>
   renderHook(() =>
@@ -114,5 +114,69 @@ describe('useRoomList', () => {
 
     expect(result.current.error).toMatchObject({ title: '채팅방 입장 실패' });
     expect(result.current.joiningRoom).toBe(false);
+  });
+
+  it('requests page 0 and exposes hasMore from the response metadata', async () => {
+    axiosInstance.get.mockResolvedValue(
+      roomsResponse([{ _id: 'room-1' }], { hasMore: true })
+    );
+
+    const { result } = renderRoomList();
+
+    await act(async () => {
+      await result.current.fetchRooms();
+    });
+
+    expect(axiosInstance.get).toHaveBeenCalledWith('/api/rooms', {
+      params: { page: 0, size: 30 },
+    });
+    expect(result.current.rooms).toEqual([{ _id: 'room-1' }]);
+    expect(result.current.hasMore).toBe(true);
+  });
+
+  it('appends the next page instead of replacing the current list', async () => {
+    axiosInstance.get.mockResolvedValueOnce(
+      roomsResponse([{ _id: 'room-1' }], { hasMore: true })
+    );
+
+    const { result } = renderRoomList();
+
+    await act(async () => {
+      await result.current.fetchRooms();
+    });
+
+    axiosInstance.get.mockResolvedValueOnce(
+      roomsResponse([{ _id: 'room-2' }], { hasMore: false })
+    );
+
+    await act(async () => {
+      await result.current.loadMoreRooms();
+    });
+
+    expect(axiosInstance.get).toHaveBeenLastCalledWith('/api/rooms', {
+      params: { page: 1, size: 30 },
+    });
+    expect(result.current.rooms).toEqual([{ _id: 'room-1' }, { _id: 'room-2' }]);
+    expect(result.current.hasMore).toBe(false);
+  });
+
+  it('does not request another page when hasMore is false', async () => {
+    axiosInstance.get.mockResolvedValue(
+      roomsResponse([{ _id: 'room-1' }], { hasMore: false })
+    );
+
+    const { result } = renderRoomList();
+
+    await act(async () => {
+      await result.current.fetchRooms();
+    });
+
+    axiosInstance.get.mockClear();
+
+    await act(async () => {
+      await result.current.loadMoreRooms();
+    });
+
+    expect(axiosInstance.get).not.toHaveBeenCalled();
   });
 });
