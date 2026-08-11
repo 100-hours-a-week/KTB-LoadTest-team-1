@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { ErrorCircleIcon, NetworkIcon, RefreshOutlineIcon } from '@vapor-ui/icons';
 import { Button, Text, Badge, Callout, Box, VStack, HStack, Spinner } from '@vapor-ui/core';
 import { useAuth } from '@/contexts/AuthContext';
@@ -70,20 +70,17 @@ export default function ChatRoomsView({ router }) {
     refreshRoomsRef.current = refreshRooms;
   }, [refreshRooms]);
 
-  // "입장" 클릭은 <Link>가 아니라 router.push라 자동 프리페치가 안 붙는다. 목록이
-  // 뜨는 시점에 미리 채팅방 라우트를 프리페치해둬야, 클릭 시 router.push가 그 라우트의
-  // RSC 응답을 새로 fetch하느라 지연되는 일(부하 상황에서 특히 두드러짐 — 서버가 여러
-  // 클라이언트의 동시 진입 fetch를 처리하느라 밀리면 화면 전환 자체가 늦어짐)이 없다.
-  // rooms는 30초 자동 갱신·"더 보기"마다 새 배열 참조로 바뀌므로, 이미 프리페치한
-  // 방 ID는 건너뛴다 — 안 그러면 갱신마다 이미 캐시된 방까지 전부 다시 요청을 쏴서
-  // 부하 상황에서 오히려 서버에 불필요한 요청 폭주를 더하게 된다.
-  useEffect(() => {
-    rooms.forEach((room) => {
-      if (prefetchedRoomIdsRef.current.has(room._id)) return;
-      prefetchedRoomIdsRef.current.add(room._id);
-      router.prefetch(`/chat/${room._id}`);
-    });
-  }, [rooms, router]);
+  // "입장" 클릭은 <Link>가 아니라 router.push라 자동 프리페치가 안 붙는다. 예전엔 목록이
+  // 뜨는 시점에 방 전체를 프리페치했는데, 페이지당 30개면 유저 1명당 실제로 클릭할 방은
+  // 1개뿐이라 나머지 29개는 순수 낭비였다 — 부하 상황(수백 명이 동시에 /chat을 봄)에서는
+  // 이게 오히려 요청량을 최대 30배로 불려서 서버를 더 밀어붙였다. 그래서 버튼을
+  // hover/focus한 방만(=클릭 직전 신호) 프리페치하도록 좁힌다. 같은 방을 여러 번
+  // hover해도 중복 요청을 안 쏘도록 이미 프리페치한 방 ID는 건너뛴다.
+  const handlePrefetchRoom = useCallback((roomId) => {
+    if (prefetchedRoomIdsRef.current.has(roomId)) return;
+    prefetchedRoomIdsRef.current.add(roomId);
+    router.prefetch(`/chat/${roomId}`);
+  }, [router]);
 
   useEffect(() => {
     if (!currentUserKey) {
@@ -252,7 +249,9 @@ export default function ChatRoomsView({ router }) {
             <RoomsTable
               rooms={rooms}
               connectionStatus={connectionStatus}
+              joiningRoom={joiningRoom}
               onJoinRoom={handleJoinRoom}
+              onPrefetchRoom={handlePrefetchRoom}
             />
             {hasMore && (
               <Button
