@@ -69,7 +69,7 @@ jobs:
     runs-on: [self-hosted, bastion]
     env:
       FRONTEND_HOSTS: ${{ vars.FRONTEND_HOSTS }}
-      FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/ktb-chat-backend:${{ github.sha }}
+      FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/ktb-chat-frontend:${{ github.sha }}
 
     steps:
       - name: Deploy to frontend hosts
