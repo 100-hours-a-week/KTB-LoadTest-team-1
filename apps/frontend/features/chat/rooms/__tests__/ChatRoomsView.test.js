@@ -147,34 +147,30 @@ describe('ChatRoomsView', () => {
     expect(screen.queryByTestId('refresh-rooms-button')).toBeNull();
   });
 
-  it('does not prefetch rooms until the join button is hovered or focused', async () => {
+  it('does not re-prefetch a room that was already prefetched on a later rooms update', async () => {
     mocks.connectionStatus = CONNECTION_STATUS.CONNECTED;
     const createdAt = '2026-08-11T00:00:00.000Z';
+    mocks.rooms = [{ _id: 'room-1', name: '방 1', participants: [], createdAt }];
+    const prefetch = vi.fn();
+
+    const { rerender } = render(<ChatRoomsView router={{ push: vi.fn(), prefetch }} />);
+
+    await waitFor(() => {
+      expect(prefetch).toHaveBeenCalledWith('/chat/room-1');
+    });
+    expect(prefetch).toHaveBeenCalledTimes(1);
+
+    // 30초 자동 갱신 등으로 rooms가 새 배열 참조로 바뀌어도, 이미 프리페치한 room-1은
+    // 다시 요청하지 않고 새로 추가된 room-2만 프리페치해야 한다.
     mocks.rooms = [
       { _id: 'room-1', name: '방 1', participants: [], createdAt },
       { _id: 'room-2', name: '방 2', participants: [], createdAt },
     ];
-    const prefetch = vi.fn();
+    rerender(<ChatRoomsView router={{ push: vi.fn(), prefetch }} />);
 
-    render(<ChatRoomsView router={{ push: vi.fn(), prefetch }} />);
-
-    const buttons = await screen.findAllByTestId('join-chat-room-button');
-    expect(buttons).toHaveLength(2);
-
-    // 목록이 뜬 시점에는 아무 방도 prefetch하지 않는다 — 실제로 입장할 방 1개만
-    // hover/focus 시점에 prefetch해서 부하 상황에서 불필요한 요청을 줄인다.
-    expect(prefetch).not.toHaveBeenCalled();
-
-    fireEvent.mouseEnter(buttons[0]);
-    expect(prefetch).toHaveBeenCalledWith('/chat/room-1');
-    expect(prefetch).toHaveBeenCalledTimes(1);
-
-    // 같은 방을 다시 hover해도 중복 요청은 쏘지 않는다.
-    fireEvent.mouseEnter(buttons[0]);
-    expect(prefetch).toHaveBeenCalledTimes(1);
-
-    fireEvent.focus(buttons[1]);
-    expect(prefetch).toHaveBeenCalledWith('/chat/room-2');
+    await waitFor(() => {
+      expect(prefetch).toHaveBeenCalledWith('/chat/room-2');
+    });
     expect(prefetch).toHaveBeenCalledTimes(2);
   });
 });
