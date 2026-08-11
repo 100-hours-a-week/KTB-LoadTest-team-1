@@ -23,6 +23,7 @@ vi.mock('@/lib/socket/socketClient', () => ({
     canSend: vi.fn(() => true),
     sendChatMessageAndWait: vi.fn(),
     fetchPreviousMessages: vi.fn(),
+    fetchPreviousMessagesAndWait: vi.fn(),
   },
 }));
 
@@ -121,5 +122,62 @@ describe('useMessageHandling', () => {
     );
     expect(result.current.filePreview).toBeNull();
     expect(result.current.uploadError).toBeNull();
+  });
+
+  it('requests older messages before the oldest loaded message', async () => {
+    const roomSocket = { connected: true };
+    const socketRef = { current: roomSocket };
+    const setLoadingMessages = vi.fn();
+    socketClient.fetchPreviousMessagesAndWait.mockResolvedValue({ messages: [], hasMore: false });
+    const messages = [{ timestamp: '2024-01-01T00:00:00.000Z' }];
+    const { result } = renderHook(() =>
+      useMessageHandling(currentUser, roomId, vi.fn(), messages, false, setLoadingMessages, socketRef)
+    );
+
+    await act(async () => {
+      await result.current.handleLoadMore();
+    });
+
+    expect(socketClient.fetchPreviousMessagesAndWait).toHaveBeenCalledWith(
+      { roomId, before: messages[0].timestamp, limit: 30 },
+      roomSocket,
+    );
+    expect(setLoadingMessages).toHaveBeenCalledWith(true);
+  });
+
+  it('releases the loading lock and surfaces an error when the server never responds', async () => {
+    const roomSocket = { connected: true };
+    const socketRef = { current: roomSocket };
+    const setLoadingMessages = vi.fn();
+    socketClient.fetchPreviousMessagesAndWait.mockRejectedValue(
+      new Error('메시지 로딩 시간이 초과되었습니다.')
+    );
+    const messages = [{ timestamp: '2024-01-01T00:00:00.000Z' }];
+    const { result } = renderHook(() =>
+      useMessageHandling(currentUser, roomId, vi.fn(), messages, false, setLoadingMessages, socketRef)
+    );
+
+    await act(async () => {
+      await result.current.handleLoadMore();
+    });
+
+    // 타임아웃이 나도 loadingMessages가 false로 풀려야 무한 스크롤이 다시 시도된다.
+    expect(setLoadingMessages).toHaveBeenLastCalledWith(false);
+    expect(Toast.error).toHaveBeenCalledWith('메시지 로딩 시간이 초과되었습니다.');
+  });
+
+  it('does not start another load while one is already in flight', async () => {
+    const roomSocket = { connected: true };
+    const socketRef = { current: roomSocket };
+    const messages = [{ timestamp: '2024-01-01T00:00:00.000Z' }];
+    const { result } = renderHook(() =>
+      useMessageHandling(currentUser, roomId, vi.fn(), messages, true, vi.fn(), socketRef)
+    );
+
+    await act(async () => {
+      await result.current.handleLoadMore();
+    });
+
+    expect(socketClient.fetchPreviousMessagesAndWait).not.toHaveBeenCalled();
   });
 });
