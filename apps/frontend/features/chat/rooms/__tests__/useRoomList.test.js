@@ -102,4 +102,17 @@ describe('useRoomList', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.rooms).toEqual([{ _id: 'room-1' }]);
   });
+
+  it('surfaces an error and does not navigate when the join response reports failure', async () => {
+    axiosInstance.post.mockResolvedValue({ data: { success: false } });
+
+    const { result } = renderRoomList();
+
+    await act(async () => {
+      await result.current.handleJoinRoom('room-1');
+    });
+
+    expect(result.current.error).toMatchObject({ title: '채팅방 입장 실패' });
+    expect(result.current.joiningRoom).toBe(false);
+  });
 });

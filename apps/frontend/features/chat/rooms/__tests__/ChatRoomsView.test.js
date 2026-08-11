@@ -71,14 +71,14 @@ describe('ChatRoomsView', () => {
   });
 
   it('does not refetch rooms when connection status changes after the initial load starts', async () => {
-    const { rerender } = render(<ChatRoomsView router={{ push: vi.fn() }} />);
+    const { rerender } = render(<ChatRoomsView router={{ push: vi.fn(), prefetch: vi.fn() }} />);
 
     await waitFor(() => {
       expect(mocks.fetchRooms).toHaveBeenCalledTimes(1);
     });
 
     mocks.connectionStatus = CONNECTION_STATUS.CONNECTED;
-    rerender(<ChatRoomsView router={{ push: vi.fn() }} />);
+    rerender(<ChatRoomsView router={{ push: vi.fn(), prefetch: vi.fn() }} />);
 
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -89,7 +89,7 @@ describe('ChatRoomsView', () => {
     mocks.connectionStatus = CONNECTION_STATUS.CONNECTED;
     vi.useFakeTimers();
 
-    render(<ChatRoomsView router={{ push: vi.fn() }} />);
+    render(<ChatRoomsView router={{ push: vi.fn(), prefetch: vi.fn() }} />);
 
     await vi.advanceTimersByTimeAsync(30000);
 
@@ -100,7 +100,7 @@ describe('ChatRoomsView', () => {
     mocks.connectionStatus = CONNECTION_STATUS.DISCONNECTED;
     vi.useFakeTimers();
 
-    render(<ChatRoomsView router={{ push: vi.fn() }} />);
+    render(<ChatRoomsView router={{ push: vi.fn(), prefetch: vi.fn() }} />);
 
     await vi.advanceTimersByTimeAsync(90000);
 
@@ -110,7 +110,7 @@ describe('ChatRoomsView', () => {
   it('catches up as soon as the tab becomes visible again', async () => {
     mocks.connectionStatus = CONNECTION_STATUS.CONNECTED;
 
-    render(<ChatRoomsView router={{ push: vi.fn() }} />);
+    render(<ChatRoomsView router={{ push: vi.fn(), prefetch: vi.fn() }} />);
 
     await waitFor(() => {
       expect(mocks.fetchRooms).toHaveBeenCalled();
@@ -124,7 +124,7 @@ describe('ChatRoomsView', () => {
   it('refreshes the list when the refresh button is clicked', async () => {
     mocks.connectionStatus = CONNECTION_STATUS.CONNECTED;
 
-    render(<ChatRoomsView router={{ push: vi.fn() }} />);
+    render(<ChatRoomsView router={{ push: vi.fn(), prefetch: vi.fn() }} />);
 
     fireEvent.click(await screen.findByTestId('refresh-rooms-button'));
 
@@ -136,7 +136,7 @@ describe('ChatRoomsView', () => {
     mocks.connectionStatus = CONNECTION_STATUS.ERROR;
     mocks.error = { title: '연결 오류', message: '서버와 연결할 수 없습니다.', type: 'danger' };
 
-    render(<ChatRoomsView router={{ push: vi.fn() }} />);
+    render(<ChatRoomsView router={{ push: vi.fn(), prefetch: vi.fn() }} />);
 
     await waitFor(() => {
       expect(screen.getByText('재연결')).toBeTruthy();

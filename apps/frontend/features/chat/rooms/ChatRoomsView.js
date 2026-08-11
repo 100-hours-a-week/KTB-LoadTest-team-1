@@ -66,6 +66,16 @@ export default function ChatRoomsView({ router }) {
     refreshRoomsRef.current = refreshRooms;
   }, [refreshRooms]);
 
+  // "입장" 클릭은 <Link>가 아니라 router.push라 자동 프리페치가 안 붙는다. 목록이
+  // 뜨는 시점에 미리 채팅방 라우트를 프리페치해둬야, 클릭 시 router.push가 그 라우트의
+  // RSC 응답을 새로 fetch하느라 지연되는 일(부하 상황에서 특히 두드러짐 — 서버가 여러
+  // 클라이언트의 동시 진입 fetch를 처리하느라 밀리면 화면 전환 자체가 늦어짐)이 없다.
+  useEffect(() => {
+    rooms.forEach((room) => {
+      router.prefetch(`/chat/${room._id}`);
+    });
+  }, [rooms, router]);
+
   useEffect(() => {
     if (!currentUserKey) {
       initialFetchStartedRef.current = false;

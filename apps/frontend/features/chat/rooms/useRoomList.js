@@ -143,6 +143,12 @@ export const useRoomList = ({
 
       if (response.data.success) {
         router.push(`/chat/${roomId}`);
+      } else {
+        setError({
+          title: '채팅방 입장 실패',
+          message: '채팅방 입장에 실패했습니다.',
+          type: 'danger',
+        });
       }
     } catch (error) {
       let errorMessage = '입장에 실패했습니다.';
