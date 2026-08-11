@@ -64,7 +64,14 @@ export const useAutoScroll = (
 
     const lastIndex = messagesRef.current.length - 1;
     if (scrollToIndex && lastIndex >= 0) {
-      scrollToIndex(lastIndex, { align: 'end', behavior });
+      // 가상화된 목록은 동적 높이 행(텍스트/이미지/파일 혼재)이 섞여 있어, smooth 스크롤
+      // 애니메이션이 진행되는 동안 실측 높이가 갱신되면 목표 위치가 밀려 마지막 메시지가
+      // 화면 밖에 남을 수 있다. behavior는 항상 'auto'로 즉시 이동시키고, 다음 애니메이션
+      // 프레임에 같은 인덱스로 한 번 더 보정해 그 사이 반영된 높이 변화를 흡수한다.
+      scrollToIndex(lastIndex, { align: 'end', behavior: 'auto' });
+      requestAnimationFrame(() => {
+        scrollToIndex(lastIndex, { align: 'end', behavior: 'auto' });
+      });
     } else {
       container.scrollTo({
         top: container.scrollHeight,

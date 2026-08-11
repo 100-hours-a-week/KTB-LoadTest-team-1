@@ -51,16 +51,19 @@ const Register = () => {
     try {
       const { name, email, password } = formData;
       await registerContext({ name, email, password });
-      
-      setSuccess(true);
-      setLoading(false);
 
-      setTimeout(() => {
-        router.push('/login');
-      }, 1000);
+      setSuccess(true);
     } catch (err) {
       setError(err.message || '회원가입 처리 중 오류가 발생했습니다.');
+      return;
+    } finally {
       setLoading(false);
+    }
+
+    try {
+      await router.replace('/');
+    } catch (navigationError) {
+      console.error('Registration navigation error:', navigationError);
     }
   };
 
@@ -77,7 +80,7 @@ const Register = () => {
         render={<Form onSubmit={handleSubmit} />}
       >
         <div className="text-center mb-4">
-          <img src="images/logo-h.png" className="w-1/2 mx-auto" alt="KTB Chat 로고" />
+          <img src="/images/logo-h.png" className="w-1/2 mx-auto" alt="KTB Chat 로고" />
         </div>
 
         {error && (
