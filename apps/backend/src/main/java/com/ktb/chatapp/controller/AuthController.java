@@ -163,22 +163,21 @@ public class AuthController {
         if (errors != null) return errors;
         
         try {
-            // Authenticate user
-            User user = userRepository.findByEmail(loginRequest.getEmail().toLowerCase())
-                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+            // Authenticate user (UserDetailsServiceImpl이 내부적으로 findByEmail을 이미 수행하므로,
+            // 여기서 별도로 먼저 조회하지 않는다 — 인증 성공 후 도메인 User가 필요할 때 한 번만 조회)
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            user.getEmail(),
+                            loginRequest.getEmail().toLowerCase(),
                             loginRequest.getPassword()
                     )
             );
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            
-            // 단일 세션 정책을 위해 기존 세션 제거
-            sessionService.removeAllUserSessions(user.getId());
 
-            // Create new session
+            User user = userRepository.findByEmail(loginRequest.getEmail().toLowerCase())
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+            // Create new session (내부에서 단일 세션 정책에 따라 기존 세션도 함께 제거한다)
             SessionMetadata metadata = new SessionMetadata(
                     request.getHeader("User-Agent"),
                     getClientIpAddress(request),
