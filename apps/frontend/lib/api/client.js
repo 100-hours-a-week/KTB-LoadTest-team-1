@@ -16,6 +16,7 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost
 export const HEALTH_TIMEOUT_MS = 3000;
 
 const pendingRequests = new Map();
+const AUTO_RETRY_METHODS = new Set(['get', 'head']);
 
 export const getAuthHeaders = (session = loadStoredUser()) => {
   if (!session?.token) {
@@ -93,7 +94,14 @@ export const createApiClient = ({
         return Promise.reject(error);
       }
 
-      if (isRetryableError(error) && config.retryCount < RETRY_CONFIG.maxRetries) {
+      const method = config.method?.toLowerCase();
+      const canAutoRetry = config.skipRetry !== true && AUTO_RETRY_METHODS.has(method);
+
+      if (
+        canAutoRetry &&
+        isRetryableError(error) &&
+        config.retryCount < RETRY_CONFIG.maxRetries
+      ) {
         config.retryCount++;
         const delay = getRetryDelay(config.retryCount);
 
