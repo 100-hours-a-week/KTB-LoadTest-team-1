@@ -1,53 +1,5 @@
 # Frontend 배포 가이드
 
-## GitHub Actions CDN 배포 설정
-
-프론트엔드 워크플로는 Docker 이미지를 만들기 전에 Next.js를 빌드하고
-`s3://ktb-chat-nextjs-assets/_next/static/`에 정적 자산을 업로드합니다.
-`CDN_ASSET_PREFIX`가 비어 있으면 AWS 인증과 업로드를 건너뛰고 기존처럼
-컨테이너가 `/_next/static`을 제공합니다.
-
-GitHub 저장소에 다음 값을 등록합니다.
-
-- Variables: `CDN_ASSET_PREFIX`, `CDN_ASSET_BUCKET`, 선택 사항인 `AWS_REGION`
-- Secrets: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SOCKET_URL`,
-  `FRONTEND_ENV`
-
-`FRONTEND_ENV`에는 GitHub Actions가 사용할 AWS 자격 증명을 dotenv 형식으로
-등록합니다.
-
-```dotenv
-AWS_ACCESS_KEY_ID=example-access-key-id
-AWS_SECRET_ACCESS_KEY=example-secret-access-key
-```
-
-`CDN_ASSET_PREFIX`에는 CloudFront 배포 도메인(예:
-`https://d1234567890.cloudfront.net`)을, `CDN_ASSET_BUCKET`에는 버킷 이름만
-입력합니다.
-
-GitHub Actions에서 사용하는 IAM 사용자에는 최소한 다음 정책을 추가해야
-합니다. 이 권한은 GitHub workflow의 `permissions`가 아니라 AWS IAM에서
-설정합니다.
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "s3:PutObject",
-      "Resource": "arn:aws:s3:::ktb-chat-nextjs-assets/_next/static/*"
-    }
-  ]
-}
-```
-
-업로드 명령은 `--delete`를 사용하지 않습니다. S3 버킷에는
-`_next/static/` prefix를 대상으로 만료 기간 7일 등의 Lifecycle 규칙을
-별도로 설정해 이전 빌드 자산을 정리합니다. 배포 직후 이전 페이지를 보고
-있는 클라이언트가 자산을 계속 불러올 수 있도록 만료 기간은 즉시 삭제보다
-충분히 길게 잡아야 합니다.
-
 ## 🚀 새로운 배포 워크플로우
 
 ### 개요
