@@ -95,7 +95,10 @@ describe('fileService', () => {
         'https://bucket.s3.ap-northeast-2.amazonaws.com/chat/abc.png?X-Amz-Signature=1',
         expect.anything(),
         expect.objectContaining({
-          headers: { 'Content-Type': 'image/png' },
+          headers: {
+            'Content-Type': 'image/png',
+            'Cache-Control': 'private, max-age=240',
+          },
         })
       );
 
