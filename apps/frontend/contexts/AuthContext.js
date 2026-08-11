@@ -1,6 +1,5 @@
 import { createContext, useState, useEffect, useCallback, useRef, useContext } from 'react';
 import { useRouter } from 'next/router';
-import socketService from '../services/socket';
 import authService from '../services/authService';
 import api, { getAuthHeaders } from '../lib/api/client';
 import {
@@ -12,6 +11,17 @@ import {
 } from '../lib/auth/authStorage';
 
 const AuthContext = createContext(null);
+
+// 인증 화면의 초기 번들에 socket.io-client가 포함되지 않도록 실제로 연결을 끊어야
+// 하는 시점에만 socket 모듈을 불러온다.
+const disconnectSocket = async () => {
+  try {
+    const { default: socketClient } = await import('../lib/socket/socketClient');
+    socketClient.disconnect();
+  } catch (error) {
+    console.error('Socket cleanup error:', error);
+  }
+};
 
 /**
  * useAuth Hook - AuthContext를 사용하기 위한 커스텀 훅
@@ -79,7 +89,7 @@ export const AuthProviderWithRouter = ({ children, router }) => {
       if (!currentUser) {
         // 세션 만료됨
         setUser(null);
-        socketService.disconnect();
+        void disconnectSocket();
         router.replace('/');
       }
     }, 5 * 60 * 1000);
@@ -114,7 +124,7 @@ export const AuthProviderWithRouter = ({ children, router }) => {
       console.error('Logout error:', error);
     } finally {
       // 소켓 연결 해제
-      socketService.disconnect();
+      await disconnectSocket();
 
       // 로컬 상태 정리
       saveUser(null);

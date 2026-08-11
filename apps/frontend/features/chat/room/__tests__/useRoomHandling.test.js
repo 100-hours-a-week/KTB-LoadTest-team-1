@@ -344,4 +344,21 @@ describe('useRoomHandling', () => {
     expect(harness.setters.setHasMoreMessages).toHaveBeenCalledWith(true);
     expect(Toast.error).toHaveBeenCalledWith('금칙어가 포함되어 메시지를 전송할 수 없습니다.');
   });
+
+  it('unsubscribes room events without disconnecting the shared socket on unmount', async () => {
+    const socket = createSocket();
+    const unsubscribe = vi.fn();
+    socketClient.connect.mockResolvedValueOnce(socket);
+    socketClient.subscribeRoomEvents.mockReturnValueOnce(unsubscribe);
+    const harness = createHarness();
+
+    await act(async () => {
+      await harness.result.current.setupRoom();
+    });
+
+    harness.unmount();
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(socket.disconnect).not.toHaveBeenCalled();
+  });
 });

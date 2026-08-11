@@ -29,7 +29,9 @@ const renderRoomsSocket = (socket, overrides = {}) => {
 };
 
 const createSocket = () => ({
+  connected: true,
   on: vi.fn(),
+  off: vi.fn(),
   emit: vi.fn(),
   disconnect: vi.fn(),
 });
@@ -44,7 +46,9 @@ describe('useRoomsSocket', () => {
 
   it('does not emit joinRoomList because the server joins room-list on connect', async () => {
     const socket = {
+      connected: true,
       on: vi.fn(),
+      off: vi.fn(),
       emit: vi.fn(),
       disconnect: vi.fn(),
     };
@@ -63,7 +67,9 @@ describe('useRoomsSocket', () => {
 
   it('does not register roomDeleted without a server-side room delete event', async () => {
     const socket = {
+      connected: true,
       on: vi.fn(),
+      off: vi.fn(),
       emit: vi.fn(),
       disconnect: vi.fn(),
     };
@@ -116,5 +122,32 @@ describe('useRoomsSocket', () => {
     handlerFor(socket, 'roomActivity')(undefined);
 
     expect(setRooms).not.toHaveBeenCalled();
+  });
+
+  it('marks the connection ready when connect resolves with an active socket', async () => {
+    const socket = createSocket();
+    const setConnectionStatus = vi.fn();
+
+    renderRoomsSocket(socket, { setConnectionStatus });
+
+    await waitFor(() => {
+      expect(setConnectionStatus).toHaveBeenCalledWith('connected');
+    });
+  });
+
+  it('removes only list listeners and keeps the shared transport on unmount', async () => {
+    const socket = createSocket();
+    const { unmount } = renderRoomsSocket(socket);
+
+    await waitFor(() => {
+      expect(socket.on).toHaveBeenCalledWith('roomCreated', expect.any(Function));
+    });
+
+    unmount();
+
+    expect(socket.off).toHaveBeenCalledWith('roomCreated', expect.any(Function));
+    expect(socket.off).toHaveBeenCalledWith('roomUpdated', expect.any(Function));
+    expect(socket.off).toHaveBeenCalledWith('roomActivity', expect.any(Function));
+    expect(socket.disconnect).not.toHaveBeenCalled();
   });
 });

@@ -79,6 +79,18 @@ describe('socketService', () => {
     expect(socket.on).not.toHaveBeenCalledWith('reconnect_failed', expect.any(Function));
   });
 
+  it('does not force a new Socket.IO manager for the singleton connection', () => {
+    const socket = createSocket();
+    io.mockReturnValue(socket);
+
+    service.connect().catch(() => {});
+
+    expect(io).toHaveBeenCalledWith(
+      'http://localhost:5002',
+      expect.not.objectContaining({ forceNew: true }),
+    );
+  });
+
   it('does not let a stale manager reconnect failure clear a newer socket', async () => {
     const failedSocket = createSocket();
     const liveSocket = createSocket({ connected: true });

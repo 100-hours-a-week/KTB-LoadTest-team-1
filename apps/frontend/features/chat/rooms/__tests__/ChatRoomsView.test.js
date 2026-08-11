@@ -93,7 +93,7 @@ describe('ChatRoomsView', () => {
 
     render(<ChatRoomsView router={{ push: vi.fn(), prefetch: vi.fn() }} />);
 
-    await vi.advanceTimersByTimeAsync(30000);
+    await vi.advanceTimersByTimeAsync(120000);
 
     expect(mocks.refreshRooms).toHaveBeenCalledWith({ silent: true });
   });
@@ -107,6 +107,17 @@ describe('ChatRoomsView', () => {
     await vi.advanceTimersByTimeAsync(90000);
 
     expect(mocks.refreshRooms).not.toHaveBeenCalled();
+  });
+
+  it('does not poll the health endpoint while the socket is connecting', async () => {
+    mocks.connectionStatus = CONNECTION_STATUS.CHECKING;
+    vi.useFakeTimers();
+
+    render(<ChatRoomsView router={{ push: vi.fn(), prefetch: vi.fn() }} />);
+
+    await vi.advanceTimersByTimeAsync(30000);
+
+    expect(mocks.attemptConnection).not.toHaveBeenCalled();
   });
 
   it('catches up as soon as the tab becomes visible again', async () => {

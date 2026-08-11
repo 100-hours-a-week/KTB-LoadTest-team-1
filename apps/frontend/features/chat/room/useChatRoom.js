@@ -96,16 +96,6 @@ export const useChatRoom = ({ roomId, onNavigate, onReplace, asPath }) => {
         socketClient.tryLeaveRoom(roomId, socketRef.current);
       }
 
-      if (socketRef.current && reason !== 'RECONNECT') {
-        socketRef.current.off('message');
-        socketRef.current.off('previousMessagesLoaded');
-        socketRef.current.off('participantsUpdate');
-        socketRef.current.off('messagesRead');
-        socketRef.current.off('messageReactionUpdate');
-        socketRef.current.off('session_ended');
-        socketRef.current.off('error');
-      }
-
       // Clear timeouts
       if (loadMoreTimeoutRef.current) {
         clearTimeout(loadMoreTimeoutRef.current);

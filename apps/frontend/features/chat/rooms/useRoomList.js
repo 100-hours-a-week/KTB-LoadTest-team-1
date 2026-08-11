@@ -10,7 +10,6 @@ export const useRoomList = ({
   connectionStatus,
   setConnectionStatus,
   isRetrying,
-  attemptConnection,
 }) => {
   const [rooms, setRooms] = useState([]);
   const [error, setError] = useState(null);
@@ -64,8 +63,6 @@ export const useRoomList = ({
   // page=0부터 시작하는 서버 페이지네이션 조회. 목록을 처음부터 다시 그릴 때(초기 로드/
   // 새로고침)만 쓴다 — 다음 페이지를 이어붙이는 건 loadMoreRooms가 따로 담당한다.
   const loadRooms = useCallback(async (page = 0) => {
-    await attemptConnection();
-
     const response = await axiosInstance.get('/api/rooms', {
       params: { page, size: ROOMS_PAGE_SIZE },
     });
@@ -78,7 +75,7 @@ export const useRoomList = ({
       rooms: response.data.data,
       hasMore: Boolean(response.data.metadata?.hasMore),
     };
-  }, [attemptConnection]);
+  }, []);
 
   const fetchRooms = useCallback(async () => {
     if (!currentUser?.token || isLoadingRef.current) {
