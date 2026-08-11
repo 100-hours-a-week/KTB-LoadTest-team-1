@@ -11,7 +11,15 @@ GitHub 저장소에 다음 값을 등록합니다.
 
 - Variables: `CDN_ASSET_PREFIX`, `CDN_ASSET_BUCKET`, 선택 사항인 `AWS_REGION`
 - Secrets: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SOCKET_URL`,
-  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+  `FRONTEND_ENV`
+
+`FRONTEND_ENV`에는 GitHub Actions가 사용할 AWS 자격 증명을 dotenv 형식으로
+등록합니다.
+
+```dotenv
+AWS_ACCESS_KEY_ID=example-access-key-id
+AWS_SECRET_ACCESS_KEY=example-secret-access-key
+```
 
 `CDN_ASSET_PREFIX`에는 CloudFront 배포 도메인(예:
 `https://d1234567890.cloudfront.net`)을, `CDN_ASSET_BUCKET`에는 버킷 이름만
