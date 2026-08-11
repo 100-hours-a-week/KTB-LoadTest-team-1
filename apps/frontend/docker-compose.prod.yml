@@ -1,0 +1,7 @@
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE}
+    container_name: bootcamp-chat-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
