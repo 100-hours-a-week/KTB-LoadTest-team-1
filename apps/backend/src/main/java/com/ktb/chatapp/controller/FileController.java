@@ -1,5 +1,8 @@
 package com.ktb.chatapp.controller;
 
+import com.ktb.chatapp.dto.ConfirmUploadRequest;
+import com.ktb.chatapp.dto.PresignedUploadRequest;
+import com.ktb.chatapp.dto.PresignedUploadResponse;
 import com.ktb.chatapp.dto.StandardResponse;
 import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.UserRepository;
@@ -8,6 +11,7 @@ import com.ktb.chatapp.service.FileAccessService;
 import com.ktb.chatapp.service.FileService;
 import com.ktb.chatapp.service.FileUploadResult;
 import com.ktb.chatapp.service.PreviewNotSupportedException;
+import com.ktb.chatapp.storage.PresignedUpload;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,6 +20,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
@@ -97,6 +102,86 @@ public class FileController {
             errorResponse.put("message", "파일 업로드 중 오류가 발생했습니다.");
             errorResponse.put("error", e.getMessage());
             return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    /**
+     * 사전서명 업로드 URL 발급 (클라이언트가 이 URL로 S3에 직접 업로드한다)
+     */
+    @Operation(summary = "사전서명 업로드 URL 발급", description = "클라이언트가 S3에 직접 업로드할 수 있는 사전서명 URL을 발급합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "발급 성공"),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "401", description = "인증 실패",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "500", description = "서버 내부 오류",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class)))
+    })
+    @PostMapping("/presigned-upload")
+    public ResponseEntity<?> issuePresignedUpload(
+            @Valid @RequestBody PresignedUploadRequest request,
+            Principal principal) {
+        try {
+            userRepository.findByEmail(principal.getName())
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + principal.getName()));
+
+            PresignedUpload presigned = fileService.issuePresignedUpload(
+                    request.getFilename(), request.getContentType(), request.getSize());
+
+            return ResponseEntity.ok(new PresignedUploadResponse(
+                    true, presigned.uploadUrl().toString(), presigned.key()));
+
+        } catch (Exception e) {
+            log.error("사전서명 업로드 발급 중 에러 발생", e);
+            return handleFileError(e);
+        }
+    }
+
+    /**
+     * 사전서명 업로드 완료 확인 (클라이언트가 S3 업로드를 마친 뒤 결과를 등록한다)
+     */
+    @Operation(summary = "사전서명 업로드 완료 확인", description = "S3에 직접 업로드된 파일의 메타데이터를 등록합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "등록 성공"),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "401", description = "인증 실패",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "500", description = "서버 내부 오류",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class)))
+    })
+    @PostMapping("/presigned-upload/complete")
+    public ResponseEntity<?> completePresignedUpload(
+            @Valid @RequestBody ConfirmUploadRequest request,
+            Principal principal) {
+        try {
+            User user = userRepository.findByEmail(principal.getName())
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + principal.getName()));
+
+            FileUploadResult result = fileService.confirmUpload(
+                    request.getKey(), request.getFilename(), request.getContentType(), request.getSize(),
+                    user.getId());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "파일 업로드 성공");
+
+            Map<String, Object> fileData = new HashMap<>();
+            fileData.put("_id", result.getFile().getId());
+            fileData.put("filename", result.getFile().getFilename());
+            fileData.put("originalname", result.getFile().getOriginalname());
+            fileData.put("mimetype", result.getFile().getMimetype());
+            fileData.put("size", result.getFile().getSize());
+            fileData.put("uploadDate", result.getFile().getUploadDate());
+
+            response.put("file", fileData);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("사전서명 업로드 확인 중 에러 발생", e);
+            return handleFileError(e);
         }
     }
 
@@ -185,6 +270,13 @@ public class FileController {
             } else if (errorMessage.contains("권한") || errorMessage.contains("Unauthorized")) {
                 statusCode = 403;
                 responseMessage = "파일에 접근할 권한이 없습니다.";
+            } else if (errorMessage.contains("지원하지 않는 파일 형식") || errorMessage.contains("확장자가 올바르지 않")
+                    || errorMessage.contains("파일명이") || errorMessage.contains("파일 크기") || errorMessage.contains("잘못된 파일 key")) {
+                statusCode = 400;
+                responseMessage = errorMessage;
+            } else if (errorMessage.contains("사전서명")) {
+                statusCode = 400;
+                responseMessage = errorMessage;
             }
         }
 
