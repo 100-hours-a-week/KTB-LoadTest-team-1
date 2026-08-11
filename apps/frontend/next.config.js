@@ -27,6 +27,10 @@ const nextConfig = {
   outputFileTracingRoot: workspaceRoot,
   // 정적 자산(_next/static)을 CDN(CloudFront → ktb-chat-nextjs-assets 버킷)에서 서빙한다.
   // dev 서버는 이 CDN에 자산을 올리지 않으므로 production 빌드에서만 적용한다.
+  // 참고: package.json의 deploy:cdn은 파일명이 콘텐츠 해시라 겹쳐쓰기 걱정이 없어
+  // --delete 없이 업로드만 한다 — 배포 직전에 옛 HTML을 이미 받은 사용자가 옛 해시의
+  // 청크를 여전히 참조할 수 있어서, 배포 순간 즉시 지우면 그 사용자들이 깨진다.
+  // 옛 자산 정리는 별도 수명주기(S3 lifecycle) 정책으로 안전한 기간 뒤에 한다.
   assetPrefix: process.env.NODE_ENV === 'production'
     ? 'https://d27gb4vxgiasxt.cloudfront.net'
     : undefined
