@@ -101,20 +101,6 @@ public class SecurityConfig {
     private CorsConfiguration createCorsConfiguration() {
         CorsConfiguration config = new CorsConfiguration();
         List<String> allowedOrigins = parseCsv(corsAllowedOrigins);
-        if (allowedOrigins.contains("*")) {
-            log.warn("╔═══════════════════════════════════════════════════════════════════════════════╗");
-            log.warn("║                           ⚠️  CORS 보안 경고  ⚠️                              ║");
-            log.warn("╠═══════════════════════════════════════════════════════════════════════════════╣");
-            log.warn("║  CORS_ALLOWED_ORIGINS에 와일드카드 '*'가 포함되어 있습니다.                 ║");
-            log.warn("║  ➜ 모든 Origin의 요청을 허용하므로 보안 위험이 있습니다.                    ║");
-            log.warn("║                                                                               ║");
-            log.warn("║  🔓 예상하지 못한 도메인에서의 요청도 수용됩니다:                           ║");
-            log.warn("║     예시) https://a-team-front.com → https://b-team-backend.com             ║");
-            log.warn("║                                                                               ║");
-            log.warn("║  💡 팀 도메인으로 CORS 설정하세요.         ║");
-            log.warn("╚═══════════════════════════════════════════════════════════════════════════════╝");
-            log.warn("");
-        }
         config.setAllowedOriginPatterns(allowedOrigins);
         config.setAllowedMethods(CORS_ALLOWED_METHODS);
         config.setAllowedHeaders(CORS_ALLOWED_HEADERS);

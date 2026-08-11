@@ -69,7 +69,10 @@ jobs:
 
           for host in ${BACKEND_HOSTS}; do
             echo "Deploying backend to ${host}"
-            ssh -o StrictHostKeyChecking=accept-new "ubuntu@${host}" 'bash -s' <<EOF
+            ssh \
+              -i /home/ubuntu/.ssh/ktb-bootcamp-keypair.pem \
+              -o StrictHostKeyChecking=accept-new \
+              "ubuntu@${host}" 'bash -s' <<EOF
           set -e
           mkdir -p "${{ env.DEPLOY_DIR }}"
           cd "${{ env.DEPLOY_DIR }}"

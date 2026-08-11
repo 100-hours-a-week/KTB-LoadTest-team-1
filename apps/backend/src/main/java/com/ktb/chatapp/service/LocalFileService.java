@@ -2,10 +2,12 @@ package com.ktb.chatapp.service;
 
 import com.ktb.chatapp.model.File;
 import com.ktb.chatapp.repository.FileRepository;
+import com.ktb.chatapp.storage.PresignedUpload;
 import com.ktb.chatapp.storage.StorageKey;
 import com.ktb.chatapp.storage.StoragePort;
 import com.ktb.chatapp.util.FileUtil;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,8 @@ import org.springframework.web.multipart.MultipartFile;
 @Slf4j
 @Service
 public class LocalFileService implements FileService {
+
+    private static final Duration PRESIGNED_UPLOAD_TTL = Duration.ofMinutes(5);
 
     private final StoragePort storagePort;
     private final FileRepository fileRepository;
@@ -101,6 +105,48 @@ public class LocalFileService implements FileService {
             log.error("파일 저장 실패: {}", ex.getMessage(), ex);
             throw new RuntimeException("파일 저장에 실패했습니다: " + ex.getMessage(), ex);
         }
+    }
+
+    @Override
+    public PresignedUpload issuePresignedUpload(String originalFilename, String contentType, long size) {
+        FileUtil.validateFileMetadata(originalFilename, contentType, size);
+
+        String cleanedFilename = StringUtils.cleanPath(originalFilename);
+        String safeFileName = FileUtil.generateSafeFileName(cleanedFilename);
+        String key = StorageKey.chat(safeFileName);
+
+        return storagePort.createUploadUrl(key, contentType, PRESIGNED_UPLOAD_TTL)
+                .orElseThrow(() -> new RuntimeException("현재 스토리지에서는 사전서명 업로드를 지원하지 않습니다."));
+    }
+
+    @Override
+    public FileUploadResult confirmUpload(
+            String key, String originalFilename, String contentType, long size, String uploaderId) {
+        FileUtil.validateFileMetadata(originalFilename, contentType, size);
+        if (!StorageKey.isChat(key)) {
+            throw new RuntimeException("잘못된 파일 key 입니다.");
+        }
+
+        String normalizedOriginalname = FileUtil.normalizeOriginalFilename(StringUtils.cleanPath(originalFilename));
+
+        File fileEntity = File.builder()
+                .filename(StorageKey.nameOf(key))
+                .originalname(normalizedOriginalname)
+                .mimetype(contentType)
+                .size(size)
+                .path(key)
+                .user(uploaderId)
+                .uploadDate(LocalDateTime.now())
+                .build();
+
+        File savedFile = fileRepository.save(fileEntity);
+
+        log.info("사전서명 업로드 확인 완료: {}", key);
+
+        return FileUploadResult.builder()
+                .success(true)
+                .file(savedFile)
+                .build();
     }
 
     @Override
