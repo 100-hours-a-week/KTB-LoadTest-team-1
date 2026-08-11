@@ -25,15 +25,20 @@ const nextConfig = {
   output: 'standalone',
   // monorepo에서 standalone 빌드 시 중첩 경로 방지
   outputFileTracingRoot: workspaceRoot,
-  // 정적 자산(_next/static)을 CDN(CloudFront → ktb-chat-nextjs-assets 버킷)에서 서빙한다.
-  // dev 서버는 이 CDN에 자산을 올리지 않으므로 production 빌드에서만 적용한다.
-  // 참고: package.json의 deploy:cdn은 파일명이 콘텐츠 해시라 겹쳐쓰기 걱정이 없어
-  // --delete 없이 업로드만 한다 — 배포 직전에 옛 HTML을 이미 받은 사용자가 옛 해시의
-  // 청크를 여전히 참조할 수 있어서, 배포 순간 즉시 지우면 그 사용자들이 깨진다.
-  // 옛 자산 정리는 별도 수명주기(S3 lifecycle) 정책으로 안전한 기간 뒤에 한다.
-  assetPrefix: process.env.NODE_ENV === 'production'
-    ? 'https://d27gb4vxgiasxt.cloudfront.net'
-    : undefined
+  // 정적 자산(_next/static)을 CDN(CloudFront → S3)에서 서빙하는 배포에서만 적용한다.
+  // CDN_ASSET_PREFIX가 설정된 경우에만 켠다 — NODE_ENV==='production'으로는 구분할 수
+  // 없다: `next build`는 어떤 스크립트로 부르든 NODE_ENV를 항상 production으로 강제해서,
+  // Docker 빌드(apps/frontend/Dockerfile이 CDN 업로드 없이 plain `next build`만 실행하고
+  // 컨테이너가 자체적으로 정적 자산을 서빙함)에서도 그 조건이 참이 되어 실제로는 업로드
+  // 안 된 CDN URL이 그대로 박혀 모든 JS/CSS 청크가 404 나는 사고가 났었다.
+  // CDN_ASSET_PREFIX는 build:production에서만 .env.production으로 채워지고, Docker
+  // 빌드에는 전달되지 않는다.
+  //
+  // package.json의 deploy:cdn은 파일명이 콘텐츠 해시라 겹쳐쓰기 걱정이 없어 --delete
+  // 없이 업로드만 한다 — 배포 직전에 옛 HTML을 이미 받은 사용자가 옛 해시의 청크를
+  // 여전히 참조할 수 있어서, 배포 순간 즉시 지우면 그 사용자들이 깨진다. 옛 자산 정리는
+  // 별도 수명주기(S3 lifecycle) 정책으로 안전한 기간 뒤에 한다.
+  assetPrefix: process.env.CDN_ASSET_PREFIX || undefined
 };
 
 module.exports = nextConfig;
