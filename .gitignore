@@ -3,6 +3,9 @@ node_modules/
 .next/
 target/
 
+# IDE files
+.idea/
+
 # Local environment files
 .env
 .env.*

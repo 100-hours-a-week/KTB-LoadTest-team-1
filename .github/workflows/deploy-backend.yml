@@ -1,0 +1,96 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ktb-chat-backend
+  DEPLOY_DIR: /home/ubuntu/ktb-chat-backend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Test backend
+        working-directory: apps/backend
+        run: ./mvnw -Punit-tests test
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/backend
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: [self-hosted, bastion]
+    env:
+      BACKEND_HOSTS: ${{ vars.BACKEND_HOSTS }}
+      BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+      BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+
+    steps:
+      - name: Deploy to backend hosts
+        run: |
+          set -e
+
+          if [ -z "${BACKEND_HOSTS}" ]; then
+            echo "BACKEND_HOSTS variable is required"
+            exit 1
+          fi
+
+          for host in ${BACKEND_HOSTS}; do
+            echo "Deploying backend to ${host}"
+            ssh -o StrictHostKeyChecking=accept-new "ubuntu@${host}" 'bash -s' <<EOF
+          set -e
+          mkdir -p "${{ env.DEPLOY_DIR }}"
+          cd "${{ env.DEPLOY_DIR }}"
+          cat > docker-compose.prod.yml <<'COMPOSE'
+          services:
+            backend:
+              image: ${BACKEND_IMAGE}
+              container_name: bootcamp-chat-backend
+              restart: unless-stopped
+              env_file:
+                - .env
+              ports:
+                - "5001:5001"
+                - "5002:5002"
+          COMPOSE
+          cat > .env <<'ENV'
+          BACKEND_IMAGE=${BACKEND_IMAGE}
+          ${BACKEND_ENV}
+          ENV
+          docker compose -f docker-compose.prod.yml pull
+          docker compose -f docker-compose.prod.yml up -d
+          docker image prune -f
+          EOF
+          done

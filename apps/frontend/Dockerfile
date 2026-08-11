@@ -6,7 +6,7 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
 # pnpm workspace lockfile을 사용하므로 repository root를 Docker build context로 사용한다.
-RUN corepack enable && corepack prepare pnpm@11.0.3 --activate
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/frontend/package.json apps/frontend/package.json
@@ -26,6 +26,11 @@ COPY apps/frontend/public apps/frontend/public
 COPY apps/frontend/services apps/frontend/services
 COPY apps/frontend/styles apps/frontend/styles
 COPY apps/frontend/utils apps/frontend/utils
+
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SOCKET_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
 
 RUN pnpm --dir apps/frontend build
 

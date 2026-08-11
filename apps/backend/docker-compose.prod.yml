@@ -1,0 +1,10 @@
+services:
+  backend:
+    image: ${BACKEND_IMAGE}
+    container_name: bootcamp-chat-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5001:5001"
+      - "5002:5002"
