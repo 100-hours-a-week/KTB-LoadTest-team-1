@@ -54,7 +54,7 @@ jobs:
     runs-on: [self-hosted, bastion]
     env:
       BACKEND_HOSTS: ${{ vars.BACKEND_HOSTS }}
-      BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+      BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/ktb-chat-backend:${{ github.sha }}
       BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
 
     steps:
