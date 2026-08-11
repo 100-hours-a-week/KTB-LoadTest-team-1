@@ -7,6 +7,7 @@ import { CONNECTION_STATUS } from '../useServerConnection';
 const mocks = vi.hoisted(() => ({
   connectionStatus: 'checking',
   error: null,
+  rooms: [],
   fetchRooms: vi.fn(() => Promise.resolve()),
   refreshRooms: vi.fn(() => Promise.resolve(true)),
   attemptConnection: vi.fn(() => Promise.resolve(true)),
@@ -41,7 +42,7 @@ vi.mock('../useServerConnection', async () => {
 
 vi.mock('../useRoomList', () => ({
   useRoomList: () => ({
-    rooms: [],
+    rooms: mocks.rooms,
     setRooms: vi.fn(),
     error: mocks.error,
     loading: false,
@@ -61,6 +62,7 @@ describe('ChatRoomsView', () => {
   beforeEach(() => {
     mocks.connectionStatus = CONNECTION_STATUS.CHECKING;
     mocks.error = null;
+    mocks.rooms = [];
     mocks.fetchRooms.mockClear();
     mocks.refreshRooms.mockClear();
     mocks.attemptConnection.mockClear();
@@ -143,5 +145,32 @@ describe('ChatRoomsView', () => {
     });
 
     expect(screen.queryByTestId('refresh-rooms-button')).toBeNull();
+  });
+
+  it('does not re-prefetch a room that was already prefetched on a later rooms update', async () => {
+    mocks.connectionStatus = CONNECTION_STATUS.CONNECTED;
+    const createdAt = '2026-08-11T00:00:00.000Z';
+    mocks.rooms = [{ _id: 'room-1', name: '방 1', participants: [], createdAt }];
+    const prefetch = vi.fn();
+
+    const { rerender } = render(<ChatRoomsView router={{ push: vi.fn(), prefetch }} />);
+
+    await waitFor(() => {
+      expect(prefetch).toHaveBeenCalledWith('/chat/room-1');
+    });
+    expect(prefetch).toHaveBeenCalledTimes(1);
+
+    // 30초 자동 갱신 등으로 rooms가 새 배열 참조로 바뀌어도, 이미 프리페치한 room-1은
+    // 다시 요청하지 않고 새로 추가된 room-2만 프리페치해야 한다.
+    mocks.rooms = [
+      { _id: 'room-1', name: '방 1', participants: [], createdAt },
+      { _id: 'room-2', name: '방 2', participants: [], createdAt },
+    ];
+    rerender(<ChatRoomsView router={{ push: vi.fn(), prefetch }} />);
+
+    await waitFor(() => {
+      expect(prefetch).toHaveBeenCalledWith('/chat/room-2');
+    });
+    expect(prefetch).toHaveBeenCalledTimes(2);
   });
 });

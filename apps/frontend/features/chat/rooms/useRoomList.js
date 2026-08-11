@@ -2,6 +2,8 @@ import { useState, useCallback, useRef } from 'react';
 import axiosInstance from '@/services/axios';
 import { CONNECTION_STATUS } from './useServerConnection';
 
+const ROOMS_PAGE_SIZE = 30;
+
 export const useRoomList = ({
   currentUser,
   router,
@@ -14,10 +16,13 @@ export const useRoomList = ({
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [joiningRoom, setJoiningRoom] = useState(false);
 
   const isLoadingRef = useRef(false);
+  const pageRef = useRef(0);
 
   const handleFetchError = useCallback((error) => {
     let errorMessage = '채팅방 목록을 불러오는데 실패했습니다.';
@@ -56,16 +61,23 @@ export const useRoomList = ({
     setConnectionStatus(CONNECTION_STATUS.ERROR);
   }, [isRetrying, setConnectionStatus]);
 
-  const loadRooms = useCallback(async () => {
+  // page=0부터 시작하는 서버 페이지네이션 조회. 목록을 처음부터 다시 그릴 때(초기 로드/
+  // 새로고침)만 쓴다 — 다음 페이지를 이어붙이는 건 loadMoreRooms가 따로 담당한다.
+  const loadRooms = useCallback(async (page = 0) => {
     await attemptConnection();
 
-    const response = await axiosInstance.get('/api/rooms');
+    const response = await axiosInstance.get('/api/rooms', {
+      params: { page, size: ROOMS_PAGE_SIZE },
+    });
 
     if (!response?.data?.data) {
       throw new Error('INVALID_RESPONSE');
     }
 
-    setRooms(response.data.data);
+    return {
+      rooms: response.data.data,
+      hasMore: Boolean(response.data.metadata?.hasMore),
+    };
   }, [attemptConnection]);
 
   const fetchRooms = useCallback(async () => {
@@ -79,7 +91,10 @@ export const useRoomList = ({
       setLoading(true);
       setError(null);
 
-      await loadRooms();
+      const { rooms: loaded, hasMore: more } = await loadRooms(0);
+      pageRef.current = 0;
+      setRooms(loaded);
+      setHasMore(more);
 
       if (isInitialLoad) {
         setIsInitialLoad(false);
@@ -93,7 +108,7 @@ export const useRoomList = ({
   }, [currentUser, isInitialLoad, loadRooms, handleFetchError]);
 
   /**
-   * 이미 그려진 목록을 유지한 채 다시 조회한다.
+   * 이미 그려진 목록을 유지한 채 다시 조회한다(첫 페이지부터 다시).
    * 자동 갱신(silent)은 실패해도 화면을 흔들지 않고 다음 주기를 기다린다.
    */
   const refreshRooms = useCallback(async ({ silent = false } = {}) => {
@@ -105,7 +120,10 @@ export const useRoomList = ({
       isLoadingRef.current = true;
       setRefreshing(true);
 
-      await loadRooms();
+      const { rooms: loaded, hasMore: more } = await loadRooms(0);
+      pageRef.current = 0;
+      setRooms(loaded);
+      setHasMore(more);
       setError(null);
 
       return true;
@@ -125,6 +143,35 @@ export const useRoomList = ({
       isLoadingRef.current = false;
     }
   }, [currentUser, loadRooms]);
+
+  // 다음 페이지를 뒤에 이어붙인다. 실패해도 pageRef는 증가시키지 않아 다음 클릭에서
+  // 같은 페이지를 다시 시도한다.
+  const loadMoreRooms = useCallback(async () => {
+    if (!currentUser?.token || isLoadingRef.current || !hasMore) {
+      return;
+    }
+
+    try {
+      isLoadingRef.current = true;
+      setLoadingMore(true);
+
+      const nextPage = pageRef.current + 1;
+      const { rooms: loaded, hasMore: more } = await loadRooms(nextPage);
+      pageRef.current = nextPage;
+      setRooms((prev) => [...prev, ...loaded]);
+      setHasMore(more);
+    } catch (error) {
+      setError({
+        title: '채팅방 목록을 더 불러오지 못했습니다',
+        message: '잠시 후 다시 시도해주세요.',
+        type: 'warning',
+        showRetry: false,
+      });
+    } finally {
+      setLoadingMore(false);
+      isLoadingRef.current = false;
+    }
+  }, [currentUser, hasMore, loadRooms]);
 
   const handleJoinRoom = useCallback(async (roomId) => {
     if (connectionStatus !== CONNECTION_STATUS.CONNECTED) {
@@ -175,9 +222,12 @@ export const useRoomList = ({
     setError,
     loading,
     refreshing,
+    loadingMore,
+    hasMore,
     joiningRoom,
     fetchRooms,
     refreshRooms,
+    loadMoreRooms,
     handleJoinRoom,
   };
 };
