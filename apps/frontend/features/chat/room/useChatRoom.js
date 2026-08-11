@@ -9,7 +9,7 @@ import { useChatRoomLifecycle } from './useChatRoomLifecycle';
 import socketClient from '@/lib/socket/socketClient';
 
 export const useChatRoom = ({ roomId, onNavigate, onReplace, asPath }) => {
-  const { user: authUser, refreshToken, logout } = useAuth();
+  const { user: authUser } = useAuth();
   const {
     state,
     refs,
@@ -58,18 +58,6 @@ export const useChatRoom = ({ roomId, onNavigate, onReplace, asPath }) => {
     attachSocket,
   };
 
-  const handleSessionError = useCallback(async () => {
-    try {
-      if (!authUser) throw new Error('No user session found');
-      await refreshToken();
-      return true;
-    } catch {
-      await logout();
-      onReplace('/?redirect=' + asPath);
-      return false;
-    }
-  }, [authUser, refreshToken, logout, onReplace, asPath]);
-
   // Message handling hook
   const {
     filePreview,
@@ -82,7 +70,7 @@ export const useChatRoom = ({ roomId, onNavigate, onReplace, asPath }) => {
   } = useMessageHandling(
     currentUser,
     roomId,
-    handleSessionError,
+    undefined,
     messages,
     loadingMessages,
     setLoadingMessages,
