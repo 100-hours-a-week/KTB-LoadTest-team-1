@@ -167,8 +167,8 @@ class SessionServiceTest {
     }
 
     @Test
-    @DisplayName("세션 검증 - lastActivity 업데이트")
-    void validateSession_UpdatesLastActivity() throws InterruptedException {
+    @DisplayName("세션 검증 - 디바운스 임계값 이내 재검증은 lastActivity를 다시 쓰지 않는다")
+    void validateSession_WithinRefreshThreshold_DoesNotRewriteLastActivity() throws InterruptedException {
         // Given
         SessionMetadata metadata = createTestMetadata();
         SessionCreationResult created = sessionService.createSession(TEST_USER_ID, metadata);
@@ -176,12 +176,13 @@ class SessionServiceTest {
 
         Thread.sleep(100);
 
-        // When
+        // When - 디바운스 임계값(1분)보다 훨씬 짧은 시간 안에 재검증
         SessionValidationResult result = sessionService.validateSession(TEST_USER_ID, created.getSessionId());
 
-        // Then
+        // Then - 세션은 여전히 유효하지만, 매 요청마다 무조건 find+save 하던 걸 없앤 게 이번
+        // 수정의 핵심이라 lastActivity는 갱신되지 않고 그대로 유지된다.
         assertTrue(result.isValid());
-        assertThat(result.getSession().getLastActivity()).isGreaterThan(initialLastActivity);
+        assertThat(result.getSession().getLastActivity()).isEqualTo(initialLastActivity);
     }
 
     // ============ 세션 활동 업데이트 테스트 ============

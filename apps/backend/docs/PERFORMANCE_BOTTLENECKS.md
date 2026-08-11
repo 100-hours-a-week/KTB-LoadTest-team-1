@@ -31,6 +31,7 @@
 | [12](performance/12-file-upload-io.md) | 파일 업로드가 동기 디스크 I/O | Medium | 미착수 |
 | [13](performance/13-reconnect-leave.md) | 소켓 재접속이 "방 나가기"로 처리됨 | 기능 버그 + 성능 | ⏸️ 프론트 수정 필요 |
 | [14](performance/14-participant-list-n-plus-1.md) | 방 입장·퇴장마다 참가자 목록을 개별 조회 | Critical | ✅ 완료 |
+| [15](performance/15-session-validate-debounce.md) | 인증된 REST 요청마다 세션을 무조건 find+save | Critical | ✅ 완료 |
 
 ## 실측 요약
 
@@ -44,6 +45,7 @@
 | [13](performance/13-reconnect-leave.md) | 유저 20명×방 5개 동시 재접속 | 퇴장 스팸 메시지 100건 → **0건** (현재 롤백 상태) |
 | [14](performance/14-participant-list-n-plus-1.md) | 참가자 30명 방 입장/퇴장(순차) | joinRoom p50 21ms → **14ms**, leaveRoom p50 22ms → **11ms** |
 | [14](performance/14-participant-list-n-plus-1.md) | 동시 30명 입장/퇴장(배경 참가자 50명, p95/p99) | join p50 -37%/p95 -25%, leave p50 -20%/p95 거의 동일 |
+| [15](performance/15-session-validate-debounce.md) | 유저 50명 × 반복 요청 50회(2,500건), MongoDB update 연산 수 | **2,500건 → 0건** (HTTP 레이턴시엔 안 드러남, DB 쓰기 자체가 사라짐) |
 
 이 항목들만 고쳐도 처리량이 수십 배 단위로 개선될 가능성이 크다.
 
@@ -64,14 +66,15 @@
 6. [6번] 히스토리 스크롤 발신자 조회 N+1 제거 — **✅ 완료.**
 7. [5번] 금칙어 필터를 Aho-Corasick으로 교체 — **✅ 완료.**
 8. [14번] 방 입장·퇴장 시 참가자 목록 개별 조회 N+1 제거 — **✅ 완료.** (감사 중 신규 발견)
+9. [15번] 인증된 REST 요청마다 세션 무조건 find+save 제거(디바운스) — **✅ 완료.** (감사 중 신규 발견)
 
 ### 2단계 — 다음으로 볼 것 (비즈니스 로직 레벨)
 
-9. [4번 남은 부분] `notifyMessageStored`의 동기 COUNT 쿼리를 인메모리 캐시로 교체. **멀티인스턴스
+10. [4번 남은 부분] `notifyMessageStored`의 동기 COUNT 쿼리를 인메모리 캐시로 교체. **멀티인스턴스
    배포가 계획돼 있어 JVM 로컬 캐시는 부적합** — 지금 방식(MongoDB 쿼리, 인스턴스 무관하게 항상
    정확) 유지가 안전하다. Redis로 옮길 만큼 우선순위가 높지는 않다고 판단해 보류.
-10. [13번] 소켓 재접속 — 백엔드 수정은 준비됐지만 프론트(`beforeunload`) 수정과 함께 진행해야 완전히 해소.
-11. [12번] 파일 업로드 동기 디스크 I/O — 부하테스트에 파일 업로드가 포함될 경우. **방향은 client→S3
+11. [13번] 소켓 재접속 — 백엔드 수정은 준비됐지만 프론트(`beforeunload`) 수정과 함께 진행해야 완전히 해소.
+12. [12번] 파일 업로드 동기 디스크 I/O — 부하테스트에 파일 업로드가 포함될 경우. **방향은 client→S3
     presigned URL로 결정**(프론트 예외 필요), 구현은 보류 중.
 
 > **⚠️ 별도로 발견한 멀티인스턴스 이슈**: 백엔드가 멀티인스턴스로 배포될 예정인데,
@@ -83,9 +86,9 @@
 
 ### 3단계 — 인프라 레벨 (후순위)
 
-12. [8][9번] 세션/rate limit을 Redis로 이전 — 이미 떠 있는 인프라를 활용하는 구조적 개선. 임팩트는 크지만 범위가 넓다.
-13. [10번] Socket.IO `acceptBackLog`/`tcpNoDelay` 튜닝 — 연결 폭주 시나리오(`ramp-up-test.js`) 대비.
-14. [11번] JVM 힙 크기 조정 — `apps/backend` 안에는 없음(`app-control.sh`가 systemd 서비스로
+13. [8][9번] 세션/rate limit을 Redis로 이전 — 이미 떠 있는 인프라를 활용하는 구조적 개선. 임팩트는 크지만 범위가 넓다.
+14. [10번] Socket.IO `acceptBackLog`/`tcpNoDelay` 튜닝 — 연결 폭주 시나리오(`ramp-up-test.js`) 대비.
+15. [11번] JVM 힙 크기 조정 — `apps/backend` 안에는 없음(`app-control.sh`가 systemd 서비스로
     기동, 실제 힙 값은 레포 밖 systemd 유닛 파일에 있음). 로컬 `make dev`용 `Makefile`의
     `JVM_OPTS`만 이 레포 스코프.
 
