@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import axios from 'axios';
 import { CameraIcon, CloseOutlineIcon } from '@vapor-ui/icons';
 import { Button, Text, Callout, IconButton, VStack, HStack } from '@vapor-ui/core';
 import { useAuth } from '@/contexts/AuthContext';
@@ -55,20 +56,34 @@ const ProfileImageUpload = ({ currentImage, onImageChange }) => {
         throw new Error('인증 정보가 없습니다.');
       }
 
-      // FormData 생성
-      const formData = new FormData();
-      formData.append('profileImage', file);
+      // presigned URL 업로드 3단계: 발급(인증된 인스턴스) → S3 직접 PUT(plain axios) →
+      // 확인(기존 /api/users/profile-image와 같은 URL, JSON body로 구분).
+      const issueResponse = await api.post('/api/users/presigned-upload/profile-image', {
+        filename: file.name,
+        contentType: file.type,
+        size: file.size,
+      });
 
-      // 파일 업로드 요청
-      const response = await api.post(
-        '/api/users/profile-image',
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
+      if (!issueResponse.data?.success) {
+        throw new Error(issueResponse.data?.message || '이미지 업로드에 실패했습니다.');
+      }
+
+      const { uploadUrl, key } = issueResponse.data;
+
+      // S3로 직접 PUT — baseURL/인증 헤더가 붙은 api 인스턴스를 쓰면 S3가 거부하므로
+      // 절대 URL을 plain axios로 호출한다.
+      await axios.put(uploadUrl, file, {
+        headers: {
+          'Content-Type': file.type,
+        },
+      });
+
+      const response = await api.post('/api/users/profile-image', {
+        key,
+        filename: file.name,
+        contentType: file.type,
+        size: file.size,
+      });
 
       const data = response.data;
 
