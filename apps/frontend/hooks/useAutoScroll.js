@@ -12,19 +12,29 @@ import { useRef, useEffect, useCallback } from 'react';
  * @param {string} currentUserId - 현재 사용자 ID
  * @param {boolean} isLoadingMessages - 이전 메시지 로딩 중 여부
  * @param {number} threshold - 자동 스크롤 임계값 (px, 기본 100)
+ * @param {Function} [scrollToIndex] - 가상화 라이브러리의 scrollToIndex(index, opts).
+ *   전달되면 바닥 스크롤에 container.scrollTo 대신 이걸 사용한다. 가상화된 목록은
+ *   아직 실측하지 않은 행의 높이가 추정치라 scrollTop=scrollHeight로는 진짜 바닥에
+ *   못 미칠 수 있는데, scrollToIndex는 대상 행을 측정→재조정까지 스스로 반복한다.
  * @returns {Object} { containerRef, scrollToBottom, isNearBottom }
  */
 export const useAutoScroll = (
-  messages = [], 
-  currentUserId = null, 
+  messages = [],
+  currentUserId = null,
   isLoadingMessages = false,
-  threshold = 100
+  threshold = 100,
+  scrollToIndex = null
 ) => {
   const containerRef = useRef(null);
   const isNearBottomRef = useRef(true);
   const previousMessagesLengthRef = useRef(0);
   const isAutoScrollingRef = useRef(false);
-  
+  const messagesRef = useRef(messages);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   // 스크롤 복원을 위한 ref
   const previousScrollHeightRef = useRef(0);
   const previousScrollTopRef = useRef(0);
@@ -52,17 +62,22 @@ export const useAutoScroll = (
 
     isAutoScrollingRef.current = true;
 
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior
-    });
+    const lastIndex = messagesRef.current.length - 1;
+    if (scrollToIndex && lastIndex >= 0) {
+      scrollToIndex(lastIndex, { align: 'end', behavior });
+    } else {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior
+      });
+    }
 
     // 스크롤 완료 후 플래그 리셋
     setTimeout(() => {
       isAutoScrollingRef.current = false;
       isNearBottomRef.current = true;
     }, 300);
-  }, []);
+  }, [scrollToIndex]);
 
   /**
    * 스크롤 이벤트 핸들러 - 사용자가 스크롤할 때 위치 추적
