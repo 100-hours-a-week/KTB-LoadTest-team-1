@@ -42,6 +42,10 @@ public class SocketIOConfig {
     @Value("${socketio.server.origin:*}")
     private String origin;
 
+    // TCP accept 큐 길이. 이전엔 10이라 연결이 짧은 시간에 몰리면(부하테스트 arrival burst 등)
+    // 커널 SYN 큐가 금방 차 연결 자체가 드롭될 수 있었다.
+    private static final int ACCEPT_BACKLOG = 512;
+
     @Bean(initMethod = "start", destroyMethod = "stop")
     public SocketIOServer socketIOServer(
             AuthTokenListener authTokenListener, MeterRegistry meterRegistry, StoreFactory storeFactory) {
@@ -52,7 +56,7 @@ public class SocketIOConfig {
         var socketConfig = new SocketConfig();
         socketConfig.setReuseAddress(true);
         socketConfig.setTcpNoDelay(false);
-        socketConfig.setAcceptBackLog(10);
+        socketConfig.setAcceptBackLog(ACCEPT_BACKLOG);
         socketConfig.setTcpSendBufferSize(4096);
         socketConfig.setTcpReceiveBufferSize(4096);
         config.setSocketConfig(socketConfig);
