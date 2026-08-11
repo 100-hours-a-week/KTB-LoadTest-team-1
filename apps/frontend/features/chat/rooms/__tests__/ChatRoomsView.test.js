@@ -147,7 +147,7 @@ describe('ChatRoomsView', () => {
     expect(screen.queryByTestId('refresh-rooms-button')).toBeNull();
   });
 
-  it('does not prefetch every room in the list', async () => {
+  it('does not re-prefetch a room that was already prefetched on a later rooms update', async () => {
     mocks.connectionStatus = CONNECTION_STATUS.CONNECTED;
     const createdAt = '2026-08-11T00:00:00.000Z';
     mocks.rooms = [{ _id: 'room-1', name: '방 1', participants: [], createdAt }];
@@ -155,12 +155,22 @@ describe('ChatRoomsView', () => {
 
     const { rerender } = render(<ChatRoomsView router={{ push: vi.fn(), prefetch }} />);
 
+    await waitFor(() => {
+      expect(prefetch).toHaveBeenCalledWith('/chat/room-1');
+    });
+    expect(prefetch).toHaveBeenCalledTimes(1);
+
+    // 30초 자동 갱신 등으로 rooms가 새 배열 참조로 바뀌어도, 이미 프리페치한 room-1은
+    // 다시 요청하지 않고 새로 추가된 room-2만 프리페치해야 한다.
     mocks.rooms = [
       { _id: 'room-1', name: '방 1', participants: [], createdAt },
       { _id: 'room-2', name: '방 2', participants: [], createdAt },
     ];
     rerender(<ChatRoomsView router={{ push: vi.fn(), prefetch }} />);
 
-    expect(prefetch).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(prefetch).toHaveBeenCalledWith('/chat/room-2');
+    });
+    expect(prefetch).toHaveBeenCalledTimes(2);
   });
 });
