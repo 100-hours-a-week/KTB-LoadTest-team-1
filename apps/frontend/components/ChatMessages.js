@@ -1,10 +1,16 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Spinner, Text, VStack } from '@vapor-ui/core';
 import SystemMessage from './SystemMessage';
 import FileMessage from './FileMessage';
 import UserMessage from './UserMessage';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { useAutoScroll } from '../hooks/useAutoScroll';
+import { getTime, isSortedAscending } from '@/features/chat/messages/useMessageList';
+
+// 텍스트/이미지/파일이 섞인 메시지의 평균적인 높이 추정치. 실제 높이는
+// 가상화가 measureElement로 렌더 후 다시 실측해 보정한다.
+const ESTIMATED_MESSAGE_HEIGHT = 120;
 
 const LoadingIndicator = React.memo(() => (
   <div className="loading-messages">
@@ -46,12 +52,20 @@ const ChatMessages = ({
     loadingMessages
   );
 
+  // rowVirtualizer는 containerRef가 필요하고, useAutoScroll의 scrollToBottom은
+  // rowVirtualizer.scrollToIndex가 필요한 순환 관계라 ref로 간접 연결한다.
+  const virtualizerRef = useRef(null);
+  const scrollToIndex = useCallback((index, opts) => {
+    virtualizerRef.current?.scrollToIndex(index, opts);
+  }, []);
+
   // 자동 스크롤 훅 (스크롤 복원 기능 포함)
   const { containerRef, scrollToBottom, isNearBottom } = useAutoScroll(
     messages,
     currentUser?.id,
     loadingMessages,
-    100 // 하단 100px 이내면 자동 스크롤
+    100, // 하단 100px 이내면 자동 스크롤
+    scrollToIndex
   );
   const isMine = useCallback((msg) => {
     if (!msg?.sender || !currentUser?.id) return false;
@@ -66,13 +80,23 @@ const ChatMessages = ({
   const allMessages = useMemo(() => {
     if (!Array.isArray(messages)) return [];
 
-    return [...messages].sort((a, b) => {
-      if (!a?.timestamp || !b?.timestamp) return 0;
-      return new Date(a.timestamp) - new Date(b.timestamp);
-    });
+    // messages는 상위에서 이미 타임스탬프 오름차순으로 관리되므로,
+    // 어긋난 경우에만 방어적으로 정렬한다 (매 렌더마다 전체 재정렬을 피함).
+    return isSortedAscending(messages)
+      ? messages
+      : [...messages].sort((a, b) => getTime(a) - getTime(b));
   }, [messages]);
 
-  const renderMessage = useCallback((msg, idx) => {
+  const rowVirtualizer = useVirtualizer({
+    count: allMessages.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => ESTIMATED_MESSAGE_HEIGHT,
+    overscan: 8,
+    getItemKey: (index) => allMessages[index]?._id ?? index,
+  });
+  virtualizerRef.current = rowVirtualizer;
+
+  const renderMessage = useCallback((msg) => {
     if (!msg) return null;
 
     const commonProps = {
@@ -88,13 +112,6 @@ const ChatMessages = ({
     }[msg.type] || UserMessage;
 
     return (
-      <div
-        key={msg._id || `msg-${idx}`}
-        style={{
-          contentVisibility: 'auto',
-          containIntrinsicSize: '1px 96px',
-        }}
-      >
       <MessageComponent
         {...commonProps}
         msg={msg}
@@ -102,7 +119,6 @@ const ChatMessages = ({
         isMine={msg.type !== 'system' ? isMine(msg) : undefined}
         isStreaming={msg.type === 'ai' ? (msg.isStreaming || false) : undefined}
       />
-      </div>
     );
   }, [currentUser, room, isMine, onReactionAdd, onReactionRemove]);
 
@@ -142,7 +158,33 @@ const ChatMessages = ({
       {allMessages.length === 0 ? (
         <EmptyMessages />
       ) : (
-        allMessages.map((msg, idx) => renderMessage(msg, idx))
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            height: rowVirtualizer.getTotalSize(),
+          }}
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => (
+            <div
+              key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={rowVirtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                // VStack의 flex gap은 절대 위치 지정된 행 사이에는 적용되지 않으므로,
+                // 같은 간격(gap: '$200')을 행 안쪽 padding으로 대신 준다.
+                paddingBottom: 'var(--vapor-space-200)',
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              {renderMessage(allMessages[virtualRow.index])}
+            </div>
+          ))}
+        </div>
       )}
     </VStack>
   );
