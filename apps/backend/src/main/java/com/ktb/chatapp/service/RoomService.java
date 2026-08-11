@@ -8,7 +8,6 @@ import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.RoomRepository;
 import com.ktb.chatapp.repository.UserRepository;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,6 +19,10 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -34,11 +37,13 @@ public class RoomService {
     private final PasswordEncoder passwordEncoder;
     private final ApplicationEventPublisher eventPublisher;
 
-    public RoomsResponse getAllRooms(String name) {
+    public RoomsResponse getAllRooms(String name, int page, int size) {
 
         try {
-            // 전체 방을 조회해 최신순으로 정렬한다
-            List<Room> rooms = roomRepository.findAll();
+            // 최신순으로 그 페이지 분량만 조회한다 (전체 개수는 세지 않는다 — 아무도 안 씀)
+            Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+            Slice<Room> roomSlice = roomRepository.findAllBy(pageable);
+            List<Room> rooms = roomSlice.getContent();
 
             // 방마다 개별 쿼리를 날리는 대신, 필요한 유저/최근 메시지 수를 한 번씩만 배치 조회한다
             Set<String> userIds = rooms.stream()
@@ -52,17 +57,12 @@ public class RoomService {
             List<RoomResponse> roomResponses = rooms.stream()
                 .map(room -> buildRoomResponse(
                     room, name, userCache, recentMessageCounts.getOrDefault(room.getId(), 0)))
-                .sorted(Comparator.comparing(
-                    RoomResponse::getCreatedAtDateTime,
-                    Comparator.nullsLast(Comparator.reverseOrder())))
-                .collect(Collectors.toList());
+                .toList();
 
             PageMetadata metadata = PageMetadata.builder()
-                .total(roomResponses.size())
-                .page(0)
-                .pageSize(roomResponses.size())
-                .totalPages(1)
-                .hasMore(false)
+                .page(page)
+                .pageSize(size)
+                .hasMore(roomSlice.hasNext())
                 .currentCount(roomResponses.size())
                 .build();
 
