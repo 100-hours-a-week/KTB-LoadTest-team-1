@@ -159,12 +159,11 @@ public class RoomService {
     }
 
     public Room joinRoom(String roomId, String password, String name) {
-        Optional<Room> roomOpt = roomRepository.findById(roomId);
-        if (roomOpt.isEmpty()) {
+        Room room = roomRepository.findById(roomId).orElse(null);
+        if (room == null) {
             return null;
         }
 
-        Room room = roomOpt.get();
         User user = userRepository.findByEmail(name)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다: " + name));
 
@@ -175,13 +174,11 @@ public class RoomService {
             }
         }
 
-        // 이미 참여중인지 확인
-        if (!room.getParticipantIds().contains(user.getId())) {
-            // 채팅방 참여
-            room.getParticipantIds().add(user.getId());
-            room = roomRepository.save(room);
-        }
-        
+        // 원자적 $addToSet — read-modify-write로 인한 동시 입장 유실을 막는다.
+        // 이미 참여중이어도 no-op이라 사전 체크가 필요 없다.
+        roomRepository.addParticipant(roomId, user.getId());
+        room = roomRepository.findById(roomId).orElse(room);
+
         // Publish event for room updated
         try {
             RoomResponse roomResponse = mapToRoomResponse(room, name);
