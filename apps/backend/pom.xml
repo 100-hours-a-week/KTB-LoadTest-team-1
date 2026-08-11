@@ -16,6 +16,7 @@
     <properties>
         <java.version>25</java.version>
         <spring-ai.version>2.0.0</spring-ai.version>
+        <aws-sdk.version>2.29.52</aws-sdk.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -23,6 +24,13 @@
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
                 <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws-sdk.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -98,6 +106,10 @@
             <groupId>org.ahocorasick</groupId>
             <artifactId>ahocorasick</artifactId>
             <version>0.6.3</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>

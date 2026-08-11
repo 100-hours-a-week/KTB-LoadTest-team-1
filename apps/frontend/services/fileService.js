@@ -74,33 +74,46 @@ class FileService {
     return { success: true };
   }
 
+  // presigned URL 업로드 3단계: 발급(인증된 인스턴스) → S3 직접 PUT(plain axios) → 확인(기존 /api/files/upload
+  // 와 같은 URL, JSON body로 구분). e2e가 /api/files/upload 응답을 감청하므로 URL은 그대로 두고
+  // Content-Type으로만 멀티파트/JSON 핸들러가 갈린다.
   async uploadFile(file, onProgress, token, sessionId) {
     const validationResult = await this.validateFile(file);
     if (!validationResult.success) {
       return validationResult;
     }
 
+    const source = CancelToken.source();
+    this.activeUploads.set(file.name, source);
+
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      const issueUrl = this.baseUrl ?
+        `${this.baseUrl}/api/files/presigned-upload` :
+        '/api/files/presigned-upload';
 
-      const source = CancelToken.source();
-      this.activeUploads.set(file.name, source);
+      const issueResponse = await axiosInstance.post(issueUrl, {
+        filename: file.name,
+        contentType: file.type,
+        size: file.size
+      });
 
-      const uploadUrl = this.baseUrl ?
-        `${this.baseUrl}/api/files/upload` :
-        '/api/files/upload';
+      if (!issueResponse.data?.success) {
+        return {
+          success: false,
+          message: issueResponse.data?.message || '파일 업로드에 실패했습니다.'
+        };
+      }
 
-      // token과 sessionId는 axios 인터셉터에서 자동으로 추가되므로
-      // 여기서는 명시적으로 전달하지 않아도 됩니다
-      const response = await axiosInstance.post(uploadUrl, formData, {
+      const { uploadUrl, key } = issueResponse.data;
+
+      // S3로 직접 PUT — baseURL/인증 헤더가 붙은 axiosInstance를 쓰면 S3가 거부하므로
+      // 절대 URL을 plain axios로 호출한다.
+      await axios.put(uploadUrl, file, {
         headers: {
-          'Content-Type': 'multipart/form-data'
+          'Content-Type': file.type
         },
-        // 업로드는 한도가 50MB 라 공통 타임아웃으로는 정상 전송도 끊긴다.
         timeout: 30000,
         cancelToken: source.token,
-        withCredentials: true,
         onUploadProgress: (progressEvent) => {
           if (onProgress) {
             const percentCompleted = Math.round(
@@ -111,20 +124,31 @@ class FileService {
         }
       });
 
+      const confirmUrl = this.baseUrl ?
+        `${this.baseUrl}/api/files/upload` :
+        '/api/files/upload';
+
+      const confirmResponse = await axiosInstance.post(confirmUrl, {
+        key,
+        filename: file.name,
+        contentType: file.type,
+        size: file.size
+      });
+
       this.activeUploads.delete(file.name);
 
-      if (!response.data || !response.data.success) {
+      if (!confirmResponse.data || !confirmResponse.data.success) {
         return {
           success: false,
-          message: response.data?.message || '파일 업로드에 실패했습니다.'
+          message: confirmResponse.data?.message || '파일 업로드에 실패했습니다.'
         };
       }
 
-      const fileData = response.data.file;
+      const fileData = confirmResponse.data.file;
       return {
         success: true,
         data: {
-          ...response.data,
+          ...confirmResponse.data,
           file: {
             ...fileData,
             url: this.getFileUrl(fileData.filename, true)
