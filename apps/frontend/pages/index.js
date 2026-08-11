@@ -24,6 +24,12 @@ const Login = () => {
   const router = useRouter();
   const { login } = useAuth();
 
+  const normalizeLoginPath = () => {
+    if (window.location.pathname !== '/login') return;
+
+    window.history.replaceState(window.history.state, '', `/${window.location.search}`);
+  };
+
   const validateForm = () => {
     // 유효성 검사는 HTML5 폼 검증에 맡김
     return true;
@@ -138,6 +144,7 @@ const Login = () => {
             type="submit"
             size="lg"
             disabled={loading}
+            onClick={normalizeLoginPath}
             data-testid="login-submit-button"
           >
             {loading ? '로그인 중...' : '로그인'}
