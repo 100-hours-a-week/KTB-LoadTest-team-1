@@ -61,7 +61,7 @@ const Register = () => {
     }
 
     try {
-      await router.replace('/');
+      await router.replace('/login');
     } catch (navigationError) {
       console.error('Registration navigation error:', navigationError);
     }
