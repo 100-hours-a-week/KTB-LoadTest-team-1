@@ -10,9 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
     "format": "prettier . --write --ignore-path .prettierignore",
-    "build:production": "test -f .env.production || { echo '.env.production 이 없습니다. cp .env.production.example .env.production 후 배포 주소로 값을 채우세요.' >&2; exit 1; } && next build && pnpm run deploy:static && pnpm run deploy:cdn",
-    "deploy:static": "cp -r .next/static .next/standalone/apps/frontend/.next/ && cp -r public .next/standalone/apps/frontend/",
-    "deploy:cdn": "set -a && . ./.env.production && set +a && if [ -z \"${CDN_ASSET_PREFIX:-}\" ]; then echo 'CDN_ASSET_PREFIX가 없어 CDN 업로드를 건너뜁니다.'; elif [ -z \"${CDN_ASSET_BUCKET:-}\" ]; then echo 'CDN_ASSET_BUCKET이 필요합니다.' >&2; exit 1; else aws s3 cp .next/static \"s3://${CDN_ASSET_BUCKET}/_next/static/\" --recursive --cache-control 'public,max-age=31536000,immutable' --no-progress; fi"
+    "build:production": "test -f .env.production || { echo '.env.production 이 없습니다. cp .env.production.example .env.production 후 배포 주소로 값을 채우세요.' >&2; exit 1; } && env $(grep -vE '^[[:space:]]*(#|$)' .env.production | xargs) next build && pnpm run deploy:static",
+    "deploy:static": "cp -r .next/static .next/standalone/apps/frontend/.next/ && cp -r public .next/standalone/apps/frontend/"
   },
   "dependencies": {
     "@emoji-mart/data": "1.2.1",

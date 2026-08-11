@@ -20,8 +20,6 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     steps:
       - name: Checkout
@@ -44,35 +42,6 @@ jobs:
       - name: Test frontend
         run: pnpm --dir apps/frontend test
 
-      - name: Configure AWS credentials
-        if: ${{ vars.CDN_ASSET_PREFIX != '' }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
-
-      - name: Build frontend and upload static assets to CDN
-        env:
-          CDN_ASSET_PREFIX: ${{ vars.CDN_ASSET_PREFIX }}
-          CDN_ASSET_BUCKET: ${{ vars.CDN_ASSET_BUCKET }}
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-          NEXT_PUBLIC_SOCKET_URL: ${{ secrets.NEXT_PUBLIC_SOCKET_URL }}
-        run: |
-          set -eu
-          trap 'rm -f apps/frontend/.env.production' EXIT
-          {
-            printf 'CDN_ASSET_PREFIX=%s\n' "$CDN_ASSET_PREFIX"
-            printf 'CDN_ASSET_BUCKET=%s\n' "$CDN_ASSET_BUCKET"
-            printf 'NEXT_PUBLIC_API_URL=%s\n' "$NEXT_PUBLIC_API_URL"
-            printf 'NEXT_PUBLIC_SOCKET_URL=%s\n' "$NEXT_PUBLIC_SOCKET_URL"
-          } > apps/frontend/.env.production
-          pnpm --dir apps/frontend run build:production
-
-      - name: Remove production environment file
-        if: always()
-        run: rm -f apps/frontend/.env.production
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -89,7 +58,6 @@ jobs:
           file: ./apps/frontend/Dockerfile
           push: true
           build-args: |
-            CDN_ASSET_PREFIX=${{ vars.CDN_ASSET_PREFIX }}
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
             NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }}
           tags: |

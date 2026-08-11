@@ -13,6 +13,7 @@ COPY apps/frontend/package.json apps/frontend/package.json
 
 RUN pnpm --dir apps/frontend install --frozen-lockfile
 
+COPY apps/frontend/.env* apps/frontend/
 COPY apps/frontend/jsconfig.json apps/frontend/next.config.js apps/frontend/postcss.config.js apps/frontend/tailwind.config.js apps/frontend/
 COPY apps/frontend/app apps/frontend/app
 COPY apps/frontend/components apps/frontend/components
@@ -28,10 +29,8 @@ COPY apps/frontend/utils apps/frontend/utils
 
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_SOCKET_URL
-ARG CDN_ASSET_PREFIX
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
-ENV CDN_ASSET_PREFIX=$CDN_ASSET_PREFIX
 
 RUN pnpm --dir apps/frontend build
 
