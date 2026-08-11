@@ -12,7 +12,9 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * rate limit 전용 RedissonClient 빈. 세션용({@link SessionRedissonConfig})과 같은 물리 Redis
- * 인스턴스(redis.session.host/port/password)를 쓰되, DB index를 1로 분리해서 세션 키와 안 섞이게 한다.
+ * 인스턴스(redis.session.host/port/password)를 쓰되, DB index를 3으로 분리해서 세션(2) 및
+ * Socket.IO 쪽({@link RedissonConfig}: 0, 1)과 안 섞이게 한다 — 물리 인스턴스를 합쳐 쓰든 분리해서
+ * 쓰든 이 배정으로 항상 안전하다.
  * {@code session.store.type}과 독립적으로 {@code ratelimit.store.type=redis}만으로 켤 수 있다.
  */
 @Configuration
@@ -34,7 +36,7 @@ public class RateLimitRedissonConfig {
         Config config = new Config();
         var serverConfig = config.useSingleServer()
                 .setAddress("redis://" + host + ":" + port)
-                .setDatabase(1);
+                .setDatabase(3);
         if (password != null && !password.isBlank()) {
             serverConfig.setPassword(password);
         }
