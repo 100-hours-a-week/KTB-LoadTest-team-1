@@ -13,7 +13,11 @@ COPY apps/frontend/package.json apps/frontend/package.json
 
 RUN pnpm --dir apps/frontend install --frozen-lockfile
 
-COPY apps/frontend/.env* apps/frontend/
+# .env* 파일은 일부러 복사하지 않는다. 필요한 빌드 타임 값(NEXT_PUBLIC_*)은 아래
+# ARG/ENV로 명시 전달되고, 소스 어디서도 .env 파일을 직접 읽지 않는다. 반대로 로컬에
+# .env.production이 있는 상태로 빌드하면(Next.js는 next build 때 NODE_ENV=production이라
+# 그 파일을 자동으로 읽는다) CDN_ASSET_PREFIX가 새어 들어가, 컨테이너가 자체적으로
+# 서빙하는 정적 자산 대신 업로드도 안 된 CDN URL을 참조하게 되는 사고가 났었다.
 COPY apps/frontend/jsconfig.json apps/frontend/next.config.js apps/frontend/postcss.config.js apps/frontend/tailwind.config.js apps/frontend/
 COPY apps/frontend/app apps/frontend/app
 COPY apps/frontend/components apps/frontend/components
